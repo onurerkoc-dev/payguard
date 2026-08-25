@@ -2,6 +2,7 @@ package dev.onurerkoc.payguard.controller;
 
 import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
 import dev.onurerkoc.payguard.dto.CustomerResponse;
+import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
 import dev.onurerkoc.payguard.service.CustomerService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -31,5 +32,12 @@ public class CustomerController {
     @GetMapping("/{id}")
     public CustomerResponse getCustomerById(@PathVariable Long id) {
         return customerService.getCustomerById(id);
+    }
+    @PutMapping("/{id}")
+    public CustomerResponse updateCustomer(
+            @PathVariable Long id,
+            @Valid @RequestBody CustomerUpdateRequest request) {
+
+        return customerService.updateCustomer(id, request);
     }
 }
