@@ -104,4 +104,14 @@ public class CustomerService {
                 updatedCustomer.getEmail()
         );
     }
+    @Transactional
+    public void deleteCustomer(Long id) {
+
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new CustomerNotFoundException(
+                        "Müşteri bulunamadı: " + id
+                ));
+
+        customerRepository.delete(customer);
+    }
 }
