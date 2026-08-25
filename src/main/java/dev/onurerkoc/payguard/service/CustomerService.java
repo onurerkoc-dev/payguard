@@ -3,6 +3,7 @@ package dev.onurerkoc.payguard.service;
 
 import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
 import dev.onurerkoc.payguard.dto.CustomerResponse;
+import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
 import dev.onurerkoc.payguard.exception.EmailAlreadyExistsException;
 import dev.onurerkoc.payguard.repository.CustomerRepository;
 import jakarta.transaction.Transactional;
@@ -53,8 +54,22 @@ public class CustomerService {
                     customer.getLastName(),
                     customer.getEmail()
             );
-        responses.add(response);
+            responses.add(response);
         }
         return responses;
+    }
+    public CustomerResponse getCustomerById(Long id) {
+
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new CustomerNotFoundException(
+                        "Müşteri bulunamadı: " + id
+                ));
+
+        return new CustomerResponse(
+                customer.getId(),
+                customer.getFirstName(),
+                customer.getLastName(),
+                customer.getEmail()
+        );
     }
 }
