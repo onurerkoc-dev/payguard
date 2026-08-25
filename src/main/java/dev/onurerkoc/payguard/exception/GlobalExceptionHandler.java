@@ -18,4 +18,13 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.CONFLICT)
                 .body(Map.of("message", exception.getMessage()));
     }
+
+    @ExceptionHandler(CustomerNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleCustomerNotFound(
+            CustomerNotFoundException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", exception.getMessage()));
+    }
 }
