@@ -9,6 +9,9 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import dev.onurerkoc.payguard.entity.Customer;
 
+import java.util.ArrayList;
+import java.util.List;
+
 
 @Service
 public class CustomerService {
@@ -38,5 +41,20 @@ public class CustomerService {
                 savedCustomer.getLastName(),
                 savedCustomer.getEmail()
         );
+    }
+
+    public List<CustomerResponse> getAllCustomers() {
+        List<Customer> customers = customerRepository.findAll();
+        List<CustomerResponse> responses = new ArrayList<>();
+        for (Customer customer : customers) {
+            CustomerResponse response = new CustomerResponse(
+                    customer.getId(),
+                    customer.getFirstName(),
+                    customer.getLastName(),
+                    customer.getEmail()
+            );
+        responses.add(response);
+        }
+        return responses;
     }
 }
