@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/customers")
 public class CustomerController {
@@ -20,5 +22,9 @@ public class CustomerController {
             @Valid @RequestBody CustomerCreateRequest request) {
 
         return customerService.createCustomer(request);
+    }
+    @GetMapping
+    public List<CustomerResponse> getAllCustomers() {
+        return customerService.getAllCustomers();
     }
 }
