@@ -3,6 +3,7 @@ package dev.onurerkoc.payguard.service;
 
 import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
 import dev.onurerkoc.payguard.dto.CustomerResponse;
+import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
 import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
 import dev.onurerkoc.payguard.exception.EmailAlreadyExistsException;
 import dev.onurerkoc.payguard.repository.CustomerRepository;
@@ -70,6 +71,37 @@ public class CustomerService {
                 customer.getFirstName(),
                 customer.getLastName(),
                 customer.getEmail()
+        );
+    }
+    @Transactional
+    public CustomerResponse updateCustomer(
+            Long id,
+            CustomerUpdateRequest request) {
+
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new CustomerNotFoundException(
+                        "Müşteri bulunamadı: " + id
+                ));
+
+        boolean emailChanged = !customer.getEmail().equals(request.getEmail());
+
+        if (emailChanged && customerRepository.existsByEmail(request.getEmail())) {
+            throw new EmailAlreadyExistsException(
+                    "Bu email adresi zaten kullanılıyor"
+            );
+        }
+
+        customer.setFirstName(request.getFirstName());
+        customer.setLastName(request.getLastName());
+        customer.setEmail(request.getEmail());
+
+        Customer updatedCustomer = customerRepository.save(customer);
+
+        return new CustomerResponse(
+                updatedCustomer.getId(),
+                updatedCustomer.getFirstName(),
+                updatedCustomer.getLastName(),
+                updatedCustomer.getEmail()
         );
     }
 }
