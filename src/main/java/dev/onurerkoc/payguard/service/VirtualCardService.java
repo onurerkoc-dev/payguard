@@ -8,6 +8,7 @@ import dev.onurerkoc.payguard.entity.Customer;
 import dev.onurerkoc.payguard.entity.VirtualCard;
 import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
 import dev.onurerkoc.payguard.exception.InvalidCardLimitException;
+import dev.onurerkoc.payguard.exception.VirtualCardNotFoundException;
 import dev.onurerkoc.payguard.repository.CustomerRepository;
 import dev.onurerkoc.payguard.repository.VirtualCardRepository;
 import org.springframework.transaction.annotation.Transactional;
@@ -126,6 +127,23 @@ public class VirtualCardService {
                     "Günlük limit, tek işlem limitinden küçük olamaz"
             );
         }
+    }
+    @Transactional(readOnly = true)
+    public VirtualCardResponse getCardById(
+            Long customerId,
+            Long cardId) {
+
+        findCustomerById(customerId);
+
+        VirtualCard card = virtualCardRepository
+                .findByIdAndCustomerId(cardId, customerId)
+                .orElseThrow(() ->
+                        new VirtualCardNotFoundException(
+                                "Sanal kart bulunamadı: " + cardId
+                        )
+                );
+
+        return mapToResponse(card);
     }
     // kart numarası üretme
     private String generateUniqueCardNumber() {

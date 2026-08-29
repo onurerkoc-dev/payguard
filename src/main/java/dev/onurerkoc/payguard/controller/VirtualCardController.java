@@ -61,4 +61,14 @@ public class VirtualCardController {
 
         return ResponseEntity.ok(cards);
     }
+    @GetMapping("/{customerId}/cards/{cardId}")
+    public ResponseEntity<VirtualCardResponse> getCardById(
+            @PathVariable("customerId") Long customerId,
+            @PathVariable("cardId") Long cardId) {
+
+        VirtualCardResponse card =
+                virtualCardService.getCardById(customerId, cardId);
+
+        return ResponseEntity.ok(card);
+    }
 }
