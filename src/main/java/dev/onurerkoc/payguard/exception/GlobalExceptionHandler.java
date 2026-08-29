@@ -63,4 +63,23 @@ Service exception fırlatır
                 .status(HttpStatus.BAD_REQUEST)
                 .body(errors);
     }
+    /*
+    *
+    *
+    *
+    *
+    * Service kartı bulamaz
+*→ VirtualCardNotFoundException fırlatır
+*→ GlobalExceptionHandler exception’ı yakalar
+*→ HTTP durumunu 404 yapar
+*→ Map JSON hata cevabını oluşturur
+     */
+    @ExceptionHandler(VirtualCardNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleVirtualCardNotFound(
+            VirtualCardNotFoundException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", exception.getMessage()));
+    }
 }
