@@ -1,5 +1,6 @@
 package dev.onurerkoc.payguard.controller;
 
+import dev.onurerkoc.payguard.dto.VirtualCardBalanceLoadRequest;
 import dev.onurerkoc.payguard.dto.VirtualCardCreateRequest;
 import dev.onurerkoc.payguard.dto.VirtualCardResponse;
 import dev.onurerkoc.payguard.dto.VirtualCardSummaryResponse;
@@ -70,5 +71,21 @@ public class VirtualCardController {
                 virtualCardService.getCardById(customerId, cardId);
 
         return ResponseEntity.ok(card);
+    }
+
+    @PostMapping("/{customerId}/cards/{cardId}/balance")
+    public ResponseEntity<VirtualCardResponse> loadBalance(
+            @PathVariable("customerId") Long customerId,
+            @PathVariable("cardId") Long cardId,
+            @Valid @RequestBody VirtualCardBalanceLoadRequest request) {
+
+        VirtualCardResponse response =
+                virtualCardService.loadBalance(
+                        customerId,
+                        cardId,
+                        request
+                );
+
+        return ResponseEntity.ok(response);
     }
 }

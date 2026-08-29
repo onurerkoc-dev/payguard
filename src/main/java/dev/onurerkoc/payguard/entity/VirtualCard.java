@@ -63,7 +63,9 @@ public class VirtualCard {
         this.frozen = false;
         this.customer = customer;
     }
-
+    public void loadBalance(BigDecimal amount) {
+        this.balance = this.balance.add(amount);
+    }
     public Long getId() {
         return id;
     }

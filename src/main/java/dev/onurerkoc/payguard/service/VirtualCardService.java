@@ -1,6 +1,7 @@
 package dev.onurerkoc.payguard.service;
 
 
+import dev.onurerkoc.payguard.dto.VirtualCardBalanceLoadRequest;
 import dev.onurerkoc.payguard.dto.VirtualCardCreateRequest;
 import dev.onurerkoc.payguard.dto.VirtualCardResponse;
 import dev.onurerkoc.payguard.dto.VirtualCardSummaryResponse;
@@ -109,6 +110,24 @@ public class VirtualCardService {
 
         return responses;
     }
+    /*
+    cardId ve customerId al
+→ Repository’de kartı ara
+→ Bulursan VirtualCard döndür
+→ Bulamazsan exception fırlat
+     */
+    private VirtualCard findCardByIdAndCustomerId(
+            Long cardId,
+            Long customerId) {
+
+        return virtualCardRepository
+                .findByIdAndCustomerId(cardId, customerId)
+                .orElseThrow(() ->
+                        new VirtualCardNotFoundException(
+                                "Sanal kart bulunamadı: " + cardId
+                        )
+                );
+    }
     private Customer findCustomerById(Long customerId) {
         return customerRepository.findById(customerId)
                 .orElseThrow(() ->
@@ -135,13 +154,33 @@ public class VirtualCardService {
 
         findCustomerById(customerId);
 
-        VirtualCard card = virtualCardRepository
-                .findByIdAndCustomerId(cardId, customerId)
-                .orElseThrow(() ->
-                        new VirtualCardNotFoundException(
-                                "Sanal kart bulunamadı: " + cardId
-                        )
-                );
+        VirtualCard card =
+                findCardByIdAndCustomerId(cardId, customerId);
+
+        return mapToResponse(card);
+    }
+
+    /*
+    Bu mekanizmaya dirty checking denir:
+Entity veritabanından getirildi
+→ Hibernate eski hâlini takip etti
+→ balance değişti
+→ Transaction tamamlanırken UPDATE çalıştı
+Dolayısıyla mevcut ve takip edilen bir entity için burada ayrıca:virtualCardRepository.save(card);
+yazmak zorunlu değil.
+     */
+    @Transactional
+    public VirtualCardResponse loadBalance(
+            Long customerId,
+            Long cardId,
+            VirtualCardBalanceLoadRequest request) {
+
+        findCustomerById(customerId);
+
+        VirtualCard card =
+                findCardByIdAndCustomerId(cardId, customerId);
+
+        card.loadBalance(request.getAmount());
 
         return mapToResponse(card);
     }
