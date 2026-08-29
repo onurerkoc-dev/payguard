@@ -3,6 +3,7 @@ package dev.onurerkoc.payguard.service;
 
 import dev.onurerkoc.payguard.dto.VirtualCardCreateRequest;
 import dev.onurerkoc.payguard.dto.VirtualCardResponse;
+import dev.onurerkoc.payguard.dto.VirtualCardSummaryResponse;
 import dev.onurerkoc.payguard.entity.Customer;
 import dev.onurerkoc.payguard.entity.VirtualCard;
 import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
@@ -14,6 +15,8 @@ import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.List;
 
 /*
 URL: /customers/1/cards
@@ -77,7 +80,34 @@ public class VirtualCardService {
 
         return mapToResponse(savedCard);
     }
+    /**
+     * Verilen müşterinin varlığını kontrol eder.
+     * Müşteriye ait kartları ID sırasına göre getirir ve
+     * kart numaralarını maskeleyerek listeleme DTO'larına dönüştürür.
+     *
+     * @param customerId kartları listelenecek müşterinin ID'si
+     * @return müşterinin maskelenmiş kart bilgilerinden oluşan liste
+     * @throws CustomerNotFoundException müşteri bulunamazsa
+     */
+    @Transactional(readOnly = true)
+    public List<VirtualCardSummaryResponse> getCardsByCustomerId(
+            Long customerId) {
 
+        findCustomerById(customerId);
+
+        List<VirtualCard> cards =
+                virtualCardRepository
+                        .findAllByCustomerIdOrderByIdAsc(customerId);
+
+        List<VirtualCardSummaryResponse> responses =
+                new ArrayList<>();
+
+        for (VirtualCard card : cards) {
+            responses.add(mapToSummaryResponse(card));
+        }
+
+        return responses;
+    }
     private Customer findCustomerById(Long customerId) {
         return customerRepository.findById(customerId)
                 .orElseThrow(() ->
@@ -131,6 +161,29 @@ public class VirtualCardService {
                 card.getDailyLimit(),
                 card.isFrozen(),
                 card.getCustomer().getId()
+        );
+    }
+    //Service’te kart numarasını maskeleyen yardımcı metod
+    private String maskCardNumber(String cardNumber) {
+
+        String lastFourDigits =
+                cardNumber.substring(cardNumber.length() - 4);
+
+        return "**** **** **** " + lastFourDigits;
+    }
+    /**
+     * VirtualCard entity'sini listeleme response DTO'suna dönüştürür.
+     * Dönüşüm sırasında kart numarasının yalnızca son dört hanesini gösterir.
+     */
+    private VirtualCardSummaryResponse mapToSummaryResponse(
+            VirtualCard card) {
+
+        return new VirtualCardSummaryResponse(
+                card.getId(),
+                card.getCardName(),
+                maskCardNumber(card.getCardNumber()),
+                card.getBalance(),
+                card.isFrozen()
         );
     }
 }
