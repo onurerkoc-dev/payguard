@@ -88,4 +88,24 @@ public class VirtualCardController {
 
         return ResponseEntity.ok(response);
     }
+    @PatchMapping("/{customerId}/cards/{cardId}/freeze")
+    public ResponseEntity<VirtualCardResponse> freezeCard(
+            @PathVariable("customerId") Long customerId,
+            @PathVariable("cardId") Long cardId) {
+
+        VirtualCardResponse response =
+                virtualCardService.freezeCard(customerId, cardId);
+
+        return ResponseEntity.ok(response);
+    }
+    @PatchMapping("/{customerId}/cards/{cardId}/unfreeze")
+    public ResponseEntity<VirtualCardResponse> unfreezeCard(
+            @PathVariable("customerId") Long customerId,
+            @PathVariable("cardId") Long cardId) {
+
+        VirtualCardResponse response =
+                virtualCardService.unfreezeCard(customerId, cardId);
+
+        return ResponseEntity.ok(response);
+    }
 }

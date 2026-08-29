@@ -184,6 +184,34 @@ yazmak zorunlu değil.
 
         return mapToResponse(card);
     }
+    @Transactional
+    public VirtualCardResponse freezeCard(
+            Long customerId,
+            Long cardId) {
+
+        findCustomerById(customerId);
+
+        VirtualCard card =
+                findCardByIdAndCustomerId(cardId, customerId);
+
+        card.freeze();
+
+        return mapToResponse(card);
+    }
+    @Transactional
+    public VirtualCardResponse unfreezeCard(
+            Long customerId,
+            Long cardId) {
+
+        findCustomerById(customerId);
+
+        VirtualCard card =
+                findCardByIdAndCustomerId(cardId, customerId);
+
+        card.unfreeze();
+
+        return mapToResponse(card);
+    }
     // kart numarası üretme
     private String generateUniqueCardNumber() {
 
