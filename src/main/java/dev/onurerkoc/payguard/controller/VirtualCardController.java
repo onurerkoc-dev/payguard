@@ -1,9 +1,6 @@
 package dev.onurerkoc.payguard.controller;
 
-import dev.onurerkoc.payguard.dto.VirtualCardBalanceLoadRequest;
-import dev.onurerkoc.payguard.dto.VirtualCardCreateRequest;
-import dev.onurerkoc.payguard.dto.VirtualCardResponse;
-import dev.onurerkoc.payguard.dto.VirtualCardSummaryResponse;
+import dev.onurerkoc.payguard.dto.*;
 import dev.onurerkoc.payguard.service.VirtualCardService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -105,6 +102,22 @@ public class VirtualCardController {
 
         VirtualCardResponse response =
                 virtualCardService.unfreezeCard(customerId, cardId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{customerId}/cards/{cardId}/limits")
+    public ResponseEntity<VirtualCardResponse> updateLimits(
+            @PathVariable("customerId") Long customerId,
+            @PathVariable("cardId") Long cardId,
+            @Valid @RequestBody VirtualCardLimitUpdateRequest request) {
+
+        VirtualCardResponse response =
+                virtualCardService.updateLimits(
+                        customerId,
+                        cardId,
+                        request
+                );
 
         return ResponseEntity.ok(response);
     }

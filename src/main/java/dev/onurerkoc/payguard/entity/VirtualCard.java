@@ -4,6 +4,18 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 
+/*
+
+Katman	Basit anlamı	Örnek
+Controller	API’nin giriş kapısı	URL’den customerId almak
+DTO	Gelen/giden veri paketi	Yüklenecek miktarı taşımak
+Service	İş akışını yönetmek	Kartı bul, kontrol et, işlemi başlat
+Entity	Gerçek veriyi ve davranışını taşımak	Bakiye artırmak, kartı dondurmak
+Repository	MySQL ile konuşmak	Kartı bulmak ve kaydetmek
+Exception	Hatalı durumu ifade etmek	“Sanal kart bulunamadı”
+ */
+
+
 @Entity
 @Table(name = "virtual_cards")
 public class VirtualCard {
@@ -73,7 +85,13 @@ public class VirtualCard {
     public void unfreeze() {
         this.frozen = false;
     }
+    public void updateLimits(
+            BigDecimal singleTransactionLimit,
+            BigDecimal dailyLimit) {
 
+        this.singleTransactionLimit = singleTransactionLimit;
+        this.dailyLimit = dailyLimit;
+    }
 
 
     public Long getId() {
