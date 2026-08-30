@@ -1,0 +1,9 @@
+package dev.onurerkoc.payguard.entity;
+
+public enum CardTransactionDeclineReason {
+    CARD_FROZEN,
+    CARD_EXPIRED,
+    INSUFFICIENT_BALANCE,
+    SINGLE_TRANSACTION_LIMIT_EXCEEDED,
+    DAILY_LIMIT_EXCEEDED
+}
