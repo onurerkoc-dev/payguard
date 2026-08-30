@@ -82,4 +82,12 @@ Service exception fırlatır
                 .status(HttpStatus.NOT_FOUND)
                 .body(Map.of("message", exception.getMessage()));
     }
+    @ExceptionHandler(CustomerHasVirtualCardsException.class)
+    public ResponseEntity<Map<String, String>> handleCustomerHasVirtualCards(
+            CustomerHasVirtualCardsException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
 }

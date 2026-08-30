@@ -4,9 +4,11 @@ package dev.onurerkoc.payguard.service;
 import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
 import dev.onurerkoc.payguard.dto.CustomerResponse;
 import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
+import dev.onurerkoc.payguard.exception.CustomerHasVirtualCardsException;
 import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
 import dev.onurerkoc.payguard.exception.EmailAlreadyExistsException;
 import dev.onurerkoc.payguard.repository.CustomerRepository;
+import dev.onurerkoc.payguard.repository.VirtualCardRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import dev.onurerkoc.payguard.entity.Customer;
@@ -18,9 +20,13 @@ import java.util.List;
 @Service
 public class CustomerService {
     private final CustomerRepository customerRepository;
-    public CustomerService(CustomerRepository customerRepository) {
-        this.customerRepository = customerRepository;
+    private final VirtualCardRepository virtualCardRepository;
+    public CustomerService(
+            CustomerRepository customerRepository,
+            VirtualCardRepository virtualCardRepository) {
 
+        this.customerRepository = customerRepository;
+        this.virtualCardRepository = virtualCardRepository;
     }
 
     @Transactional
@@ -111,7 +117,11 @@ public class CustomerService {
                 .orElseThrow(() -> new CustomerNotFoundException(
                         "Müşteri bulunamadı: " + id
                 ));
-
+        if (virtualCardRepository.existsByCustomerId(id)) {
+            throw new CustomerHasVirtualCardsException(
+                    "Sanal kartı bulunan müşteri silinemez"
+            );
+        }
         customerRepository.delete(customer);
     }
 }

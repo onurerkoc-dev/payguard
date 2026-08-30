@@ -15,4 +15,5 @@ public interface VirtualCardRepository
             Long cardId,
             Long customerId
     );
+    boolean existsByCustomerId(Long customerId);
 }
