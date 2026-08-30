@@ -1,10 +1,7 @@
 package dev.onurerkoc.payguard.service;
 
 
-import dev.onurerkoc.payguard.dto.VirtualCardBalanceLoadRequest;
-import dev.onurerkoc.payguard.dto.VirtualCardCreateRequest;
-import dev.onurerkoc.payguard.dto.VirtualCardResponse;
-import dev.onurerkoc.payguard.dto.VirtualCardSummaryResponse;
+import dev.onurerkoc.payguard.dto.*;
 import dev.onurerkoc.payguard.entity.Customer;
 import dev.onurerkoc.payguard.entity.VirtualCard;
 import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
@@ -15,6 +12,7 @@ import dev.onurerkoc.payguard.repository.VirtualCardRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -63,7 +61,10 @@ public class VirtualCardService {
 
         Customer customer = findCustomerById(customerId);
 
-        validateLimits(request);
+        validateLimits(
+                request.getSingleTransactionLimit(),
+                request.getDailyLimit()
+        );
 
         String cardNumber = generateUniqueCardNumber();
         YearMonth expiryDate = generateExpiryDate();
@@ -137,10 +138,11 @@ public class VirtualCardService {
                 );
     }
     //Günlük limit, tek işlem limitinden küçük olamaz.
-    private void validateLimits(VirtualCardCreateRequest request) {
+    private void validateLimits(
+            BigDecimal singleTransactionLimit,
+            BigDecimal dailyLimit) {
 
-        if (request.getDailyLimit()
-                .compareTo(request.getSingleTransactionLimit()) < 0) {
+        if (dailyLimit.compareTo(singleTransactionLimit) < 0) {
 
             throw new InvalidCardLimitException(
                     "Günlük limit, tek işlem limitinden küçük olamaz"
@@ -212,6 +214,30 @@ yazmak zorunlu değil.
 
         return mapToResponse(card);
     }
+    @Transactional
+    public VirtualCardResponse updateLimits(
+            Long customerId,
+            Long cardId,
+            VirtualCardLimitUpdateRequest request) {
+
+        findCustomerById(customerId);
+
+        VirtualCard card =
+                findCardByIdAndCustomerId(cardId, customerId);
+
+        validateLimits(
+                request.getSingleTransactionLimit(),
+                request.getDailyLimit()
+        );
+
+        card.updateLimits(
+                request.getSingleTransactionLimit(),
+                request.getDailyLimit()
+        );
+
+        return mapToResponse(card);
+    }
+
     // kart numarası üretme
     private String generateUniqueCardNumber() {
 
