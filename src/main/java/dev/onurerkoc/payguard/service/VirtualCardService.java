@@ -2,11 +2,11 @@ package dev.onurerkoc.payguard.service;
 
 
 import dev.onurerkoc.payguard.dto.*;
-import dev.onurerkoc.payguard.entity.Customer;
-import dev.onurerkoc.payguard.entity.VirtualCard;
+import dev.onurerkoc.payguard.entity.*;
 import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
 import dev.onurerkoc.payguard.exception.InvalidCardLimitException;
 import dev.onurerkoc.payguard.exception.VirtualCardNotFoundException;
+import dev.onurerkoc.payguard.repository.CardTransactionRepository;
 import dev.onurerkoc.payguard.repository.CustomerRepository;
 import dev.onurerkoc.payguard.repository.VirtualCardRepository;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,13 +35,21 @@ MySQL: virtual_cards.customer_id = 1
  */
 @Service
 public class VirtualCardService {
+
     private final VirtualCardRepository virtualCardRepository;
     private final CustomerRepository customerRepository;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final CardTransactionRepository cardTransactionRepository;
 
-    public VirtualCardService(VirtualCardRepository virtualCardRepository, CustomerRepository customerRepository) {
+
+    public VirtualCardService(
+            VirtualCardRepository virtualCardRepository,
+            CustomerRepository customerRepository,
+            CardTransactionRepository cardTransactionRepository) {
+
         this.virtualCardRepository = virtualCardRepository;
         this.customerRepository = customerRepository;
+        this.cardTransactionRepository = cardTransactionRepository;
     }
 
     /*
@@ -183,6 +191,21 @@ yazmak zorunlu değil.
                 findCardByIdAndCustomerId(cardId, customerId);
 
         card.loadBalance(request.getAmount());
+
+        // Kart bakiyesi yukarıdaki loadBalance çağrısıyla zaten artırıldı.
+        // Aşağıdaki işlem bakiyeyi tekrar artırmaz;
+        // yapılan bakiye yüklemesini işlem geçmişine kaydetmek için oluşturulur.
+        CardTransaction balanceLoadTransaction =
+                new CardTransaction(
+                        CardTransactionType.BALANCE_LOAD,
+                        CardTransactionStatus.APPROVED,
+                        request.getAmount(),
+                        null,
+                        null,
+                        card
+                );
+        // İşlem geçmişi kaydını card_transactions tablosuna yazar.
+        cardTransactionRepository.save(balanceLoadTransaction);
 
         return mapToResponse(card);
     }
