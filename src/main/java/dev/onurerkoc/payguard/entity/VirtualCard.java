@@ -24,6 +24,15 @@ public class VirtualCard {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /*
+Kart aynı anda iki farklı transaction tarafından değiştirilirse
+eski veriye sahip transaction'ın kaydetmesini engeller.
+*/
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
+
     @Column(nullable = false, length = 50)
     private String cardName;
 
@@ -88,6 +97,14 @@ public class VirtualCard {
     public void loadBalance(BigDecimal amount) {
         this.balance = this.balance.add(amount);
     }
+
+    // Yalnızca onaylanan ödeme tutarını kart bakiyesinden düşürür.
+    //BigDecimal değiştirilebilir bir nesne değildir. Şu kod mevcut bakiyeyi değiştirmez.subtract() yeni bir BigDecimal sonucu döndürür. Bu nedenle sonucu tekrar alana koyuyoruz:
+    public void deductBalance(BigDecimal amount) {
+        this.balance = this.balance.subtract(amount);
+    }
+
+
     public void freeze() {
         this.frozen = true;
     }

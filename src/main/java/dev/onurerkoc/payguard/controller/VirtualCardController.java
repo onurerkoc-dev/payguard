@@ -138,4 +138,24 @@ public class VirtualCardController {
 
         return ResponseEntity.ok(response);
     }
+
+    /*
+Gelen ödeme isteğini PayGuard iş kurallarına göre değerlendirir.
+Sonuç APPROVED veya DECLINED olabilir.
+*/
+    @PostMapping("/{customerId}/cards/{cardId}/payments")
+    public ResponseEntity<PaymentAuthorizationResponse> authorizePayment(
+            @PathVariable("customerId") Long customerId,
+            @PathVariable("cardId") Long cardId,
+            @Valid @RequestBody PaymentAuthorizationRequest request) {
+
+        PaymentAuthorizationResponse response =
+                virtualCardService.authorizePayment(
+                        customerId,
+                        cardId,
+                        request
+                );
+
+        return ResponseEntity.ok(response);
+    }
 }

@@ -15,7 +15,10 @@ import dev.onurerkoc.payguard.dto.VirtualCardPaymentSettingsRequest;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -284,6 +287,43 @@ yazmak zorunlu değil.
         // Kartın güncel bilgilerini JSON cevabına dönüştürür.
         return mapToResponse(card);
     }
+    /*
+Ödeme isteğini bütün PayGuard iş kurallarına göre değerlendirir.
+
+Ödeme reddedilirse bakiye değişmeden DECLINED kayıt oluşturur.
+Ödeme onaylanırsa bakiyeyi azaltıp APPROVED kayıt oluşturur.
+*/
+    @Transactional
+    public PaymentAuthorizationResponse authorizePayment(
+            Long customerId,
+            Long cardId,
+            PaymentAuthorizationRequest request) {
+
+        // URL'deki müşterinin gerçekten var olduğunu kontrol eder.
+        findCustomerById(customerId);
+
+        // Kartı bulur ve URL'deki müşteriye ait olduğunu doğrular.
+        VirtualCard card =
+                findCardByIdAndCustomerId(cardId, customerId);
+
+        // Ödeme kurallarını sırayla kontrol eder.
+        CardTransactionDeclineReason declineReason =
+                determineDeclineReason(card, request);
+
+        // Bir ret nedeni bulunduysa ödeme reddedilir.
+        if (declineReason != null) {
+            return createDeclinedPayment(
+                    card,
+                    request,
+                    declineReason
+            );
+        }
+
+        // Ret nedeni yoksa ödeme onaylanır.
+        return createApprovedPayment(card, request);
+    }
+
+
     // kart numarası üretme
     private String generateUniqueCardNumber() {
 
@@ -345,5 +385,184 @@ yazmak zorunlu değil.
                 card.getBalance(),
                 card.isFrozen()
         );
+    }
+
+    /*
+İstanbul saatine göre bugünün başlangıç ve bitiş zamanını hesaplar.
+Yalnızca bugün onaylanmış PAYMENT işlemlerinin toplamını döndürür.
+*/
+    private BigDecimal calculateTodayApprovedPaymentTotal(Long cardId) {
+
+        ZoneId istanbulZone = ZoneId.of("Europe/Istanbul");
+
+        LocalDate today = LocalDate.now(istanbulZone);
+
+        Instant startTime =
+                today.atStartOfDay(istanbulZone).toInstant();
+
+        Instant endTime =
+                today.plusDays(1)
+                        .atStartOfDay(istanbulZone)
+                        .toInstant();
+
+        return cardTransactionRepository.calculateTotalAmount(
+                cardId,
+                CardTransactionType.PAYMENT,
+                CardTransactionStatus.APPROVED,
+                startTime,
+                endTime
+        );
+    }
+    /*
+Kartın son kullanma ayını İstanbul'daki mevcut ay ile karşılaştırır.
+Kart, son kullanma ayının sonuna kadar geçerlidir.
+*/
+    private boolean isCardExpired(VirtualCard card) {
+
+        YearMonth currentMonth =
+                YearMonth.now(ZoneId.of("Europe/Istanbul"));
+
+        YearMonth cardExpiryDate =
+                YearMonth.of(
+                        card.getExpiryYear(),
+                        card.getExpiryMonth()
+                );
+
+        return cardExpiryDate.isBefore(currentMonth);
+    }
+    /*
+Ödeme kurallarını belirlenen sırayla kontrol eder.
+
+Bir kural geçmezse ilgili ret nedenini döndürür.
+Bütün kurallar geçerse null döndürür.
+Bu metot bakiyeyi değiştirmez ve işlem kaydı oluşturmaz.
+*/
+    private CardTransactionDeclineReason determineDeclineReason(
+            VirtualCard card,
+            PaymentAuthorizationRequest request) {
+
+        // 1. Dondurulmuş kart hiçbir ödeme yapamaz.
+        if (card.isFrozen()) {
+            return CardTransactionDeclineReason.CARD_FROZEN;
+        }
+
+        // 2. Son kullanma tarihi geçmiş kart ödeme yapamaz.
+        if (isCardExpired(card)) {
+            return CardTransactionDeclineReason.CARD_EXPIRED;
+        }
+
+        // 3. Ödeme internet işlemi ise kartın internet izni açık olmalıdır.
+        if (Boolean.TRUE.equals(request.getOnlineTransaction())
+                && !card.isOnlineTransactionsEnabled()) {
+
+            return CardTransactionDeclineReason
+                    .ONLINE_TRANSACTIONS_DISABLED;
+        }
+
+        // 4. Ödeme yurt dışı işlemi ise kartın yurt dışı izni açık olmalıdır.
+        if (Boolean.TRUE.equals(request.getInternationalTransaction())
+                && !card.isInternationalTransactionsEnabled()) {
+
+            return CardTransactionDeclineReason
+                    .INTERNATIONAL_TRANSACTIONS_DISABLED;
+        }
+
+        // 5. Ödeme tutarı tek işlem limitini aşamaz.
+        if (request.getAmount()
+                .compareTo(card.getSingleTransactionLimit()) > 0) {
+
+            return CardTransactionDeclineReason
+                    .SINGLE_TRANSACTION_LIMIT_EXCEEDED;
+        }
+
+        // 6. Bugünkü onaylanmış ödemelerin toplamını bulur.
+        BigDecimal todayApprovedTotal =
+                calculateTodayApprovedPaymentTotal(card.getId());
+
+        BigDecimal totalAfterPayment =
+                todayApprovedTotal.add(request.getAmount());
+
+        // Yeni ödemeyle birlikte günlük limit aşılıyor mu?
+        if (totalAfterPayment.compareTo(card.getDailyLimit()) > 0) {
+
+            return CardTransactionDeclineReason
+                    .DAILY_LIMIT_EXCEEDED;
+        }
+
+        // 7. Kart bakiyesi ödeme tutarından küçük olamaz.
+        if (card.getBalance().compareTo(request.getAmount()) < 0) {
+
+            return CardTransactionDeclineReason
+                    .INSUFFICIENT_BALANCE;
+        }
+
+        // Hiçbir ret sebebi bulunmadı; ödeme onaylanabilir.
+        return null;
+    }
+    /*
+Kaydedilmiş ödeme işlemini API response DTO'suna dönüştürür.
+Kartın işlemden sonraki mevcut bakiyesini de cevaba ekler.
+*/
+    private PaymentAuthorizationResponse
+    mapToPaymentAuthorizationResponse(CardTransaction transaction) {
+
+        return new PaymentAuthorizationResponse(
+                transaction.getId(),
+                transaction.getStatus(),
+                transaction.getDeclineReason(),
+                transaction.getAmount(),
+                transaction.getMerchantName(),
+                transaction.getCard().getBalance(),
+                transaction.getCreatedAt(),
+                transaction.getCard().getId()
+        );
+    }
+    /*
+Reddedilen ödeme için işlem geçmişi kaydı oluşturur.
+Kart bakiyesini azaltmaz.
+*/
+    private PaymentAuthorizationResponse createDeclinedPayment(
+            VirtualCard card,
+            PaymentAuthorizationRequest request,
+            CardTransactionDeclineReason declineReason) {
+
+        CardTransaction transaction = new CardTransaction(
+                CardTransactionType.PAYMENT,
+                CardTransactionStatus.DECLINED,
+                request.getAmount(),
+                request.getMerchantName().trim(),
+                declineReason,
+                card
+        );
+
+        CardTransaction savedTransaction =
+                cardTransactionRepository.save(transaction);
+
+        return mapToPaymentAuthorizationResponse(savedTransaction);
+    }
+    /*
+Onaylanan ödeme tutarını kart bakiyesinden düşürür.
+Ardından APPROVED ödeme kaydını işlem geçmişine ekler.
+*/
+    private PaymentAuthorizationResponse createApprovedPayment(
+            VirtualCard card,
+            PaymentAuthorizationRequest request) {
+
+        // Ödeme onaylandığı için kart bakiyesi azaltılır.
+        card.deductBalance(request.getAmount());
+
+        CardTransaction transaction = new CardTransaction(
+                CardTransactionType.PAYMENT,
+                CardTransactionStatus.APPROVED,
+                request.getAmount(),
+                request.getMerchantName().trim(),
+                null,
+                card
+        );
+
+        CardTransaction savedTransaction =
+                cardTransactionRepository.save(transaction);
+
+        return mapToPaymentAuthorizationResponse(savedTransaction);
     }
 }
