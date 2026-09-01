@@ -2,6 +2,7 @@ package dev.onurerkoc.payguard.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -89,5 +90,22 @@ Service exception fırlatır
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(Map.of("message", exception.getMessage()));
+    }
+    /*
+Aynı kart iki farklı transaction tarafından aynı anda güncellenirse
+oluşan optimistic locking hatasını anlamlı API cevabına dönüştürür.
+*/
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, String>>
+    handleOptimisticLockingFailure(
+            ObjectOptimisticLockingFailureException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of(
+                        "message",
+                        "Kart bilgileri başka bir işlem tarafından güncellendi. "
+                                + "Lütfen işlemi tekrar deneyin."
+                ));
     }
 }
