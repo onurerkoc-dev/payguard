@@ -121,4 +121,21 @@ public class VirtualCardController {
 
         return ResponseEntity.ok(response);
     }
+
+    @PatchMapping("/{customerId}/cards/{cardId}/payment-settings")
+    public ResponseEntity<VirtualCardResponse> updatePaymentSettings(
+            @PathVariable("customerId") Long customerId,
+            @PathVariable("cardId") Long cardId,
+            @Valid @RequestBody
+            VirtualCardPaymentSettingsRequest request) {
+
+        VirtualCardResponse response =
+                virtualCardService.updatePaymentSettings(
+                        customerId,
+                        cardId,
+                        request
+                );
+
+        return ResponseEntity.ok(response);
+    }
 }

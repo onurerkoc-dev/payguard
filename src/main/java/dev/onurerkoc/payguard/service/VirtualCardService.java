@@ -11,6 +11,7 @@ import dev.onurerkoc.payguard.repository.CustomerRepository;
 import dev.onurerkoc.payguard.repository.VirtualCardRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
+import dev.onurerkoc.payguard.dto.VirtualCardPaymentSettingsRequest;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
@@ -261,6 +262,28 @@ yazmak zorunlu değil.
         return mapToResponse(card);
     }
 
+    @Transactional
+    public VirtualCardResponse updatePaymentSettings(
+            Long customerId,
+            Long cardId,
+            VirtualCardPaymentSettingsRequest request) {
+
+        // URL'deki müşterinin gerçekten var olduğunu kontrol eder.
+        findCustomerById(customerId);
+
+        // Kartı bulur ve belirtilen müşteriye ait olduğunu doğrular.
+        VirtualCard card =
+                findCardByIdAndCustomerId(cardId, customerId);
+
+        // JSON'dan DTO'ya gelen ayarları karta uygular.
+        card.updatePaymentSettings(
+                request.getOnlineTransactionsEnabled(),
+                request.getInternationalTransactionsEnabled()
+        );
+
+        // Kartın güncel bilgilerini JSON cevabına dönüştürür.
+        return mapToResponse(card);
+    }
     // kart numarası üretme
     private String generateUniqueCardNumber() {
 
@@ -279,6 +302,7 @@ yazmak zorunlu değil.
 
         return cardNumber;
     }
+
     private YearMonth generateExpiryDate() {
         return YearMonth.now().plusYears(4);
     }
@@ -294,6 +318,8 @@ yazmak zorunlu değil.
                 card.getSingleTransactionLimit(),
                 card.getDailyLimit(),
                 card.isFrozen(),
+                card.isOnlineTransactionsEnabled(),
+                card.isInternationalTransactionsEnabled(),
                 card.getCustomer().getId()
         );
     }

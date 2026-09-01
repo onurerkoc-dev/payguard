@@ -16,6 +16,9 @@ public class VirtualCardResponse {
     private BigDecimal dailyLimit;
     private boolean frozen;
     private Long customerId;
+    private boolean onlineTransactionsEnabled;
+    private boolean internationalTransactionsEnabled;
+
 
     public VirtualCardResponse(
             Long id,
@@ -27,6 +30,8 @@ public class VirtualCardResponse {
             BigDecimal singleTransactionLimit,
             BigDecimal dailyLimit,
             boolean frozen,
+            boolean onlineTransactionsEnabled,
+            boolean internationalTransactionsEnabled,
             Long customerId) {
 
         this.id = id;
@@ -38,6 +43,9 @@ public class VirtualCardResponse {
         this.singleTransactionLimit = singleTransactionLimit;
         this.dailyLimit = dailyLimit;
         this.frozen = frozen;
+        this.onlineTransactionsEnabled = onlineTransactionsEnabled;
+        this.internationalTransactionsEnabled =
+                internationalTransactionsEnabled;
         this.customerId = customerId;
     }
 
@@ -77,7 +85,16 @@ public class VirtualCardResponse {
         return frozen;
     }
 
+    public boolean isOnlineTransactionsEnabled() {
+        return onlineTransactionsEnabled;
+    }
+
+    public boolean isInternationalTransactionsEnabled() {
+        return internationalTransactionsEnabled;
+    }
+
     public Long getCustomerId() {
         return customerId;
     }
+
 }

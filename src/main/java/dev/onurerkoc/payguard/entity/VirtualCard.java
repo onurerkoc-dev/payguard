@@ -52,6 +52,14 @@ public class VirtualCard {
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer;
 
+    // Kart internet üzerinden yapılan ödemelerde kullanılabilir mi?
+    @Column(nullable = false)
+    private boolean onlineTransactionsEnabled;
+
+    // Kart yurt dışı işlemlerinde kullanılabilir mi?
+    @Column(nullable = false)
+    private boolean internationalTransactionsEnabled;
+
     public VirtualCard() {
 
     }
@@ -74,6 +82,8 @@ public class VirtualCard {
         this.dailyLimit = dailyLimit;
         this.frozen = false;
         this.customer = customer;
+        this.onlineTransactionsEnabled = true;
+        this.internationalTransactionsEnabled = false;
     }
     public void loadBalance(BigDecimal amount) {
         this.balance = this.balance.add(amount);
@@ -91,6 +101,15 @@ public class VirtualCard {
 
         this.singleTransactionLimit = singleTransactionLimit;
         this.dailyLimit = dailyLimit;
+    }
+    // Kartın internet ve yurt dışı ödeme izinlerini birlikte günceller.
+    public void updatePaymentSettings(
+            boolean onlineTransactionsEnabled,
+            boolean internationalTransactionsEnabled) {
+
+        this.onlineTransactionsEnabled = onlineTransactionsEnabled;
+        this.internationalTransactionsEnabled =
+                internationalTransactionsEnabled;
     }
 
 
@@ -132,5 +151,13 @@ public class VirtualCard {
 
     public Customer getCustomer() {
         return customer;
+    }
+
+    public boolean isOnlineTransactionsEnabled() {
+        return onlineTransactionsEnabled;
+    }
+
+    public boolean isInternationalTransactionsEnabled() {
+        return internationalTransactionsEnabled;
     }
 }
