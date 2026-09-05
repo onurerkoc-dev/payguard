@@ -12,6 +12,15 @@ public class CardTransaction {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    // Aynı ödeme isteğinin birden fazla kez işlenmesini engellemek için
+    // istemci tarafından gönderilen benzersiz anahtarı saklar.
+    @Column(
+            name = "idempotency_key",
+            unique = true,
+            length = 100,
+            updatable = false
+    )
+    private String idempotencyKey;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -40,14 +49,12 @@ public class CardTransaction {
     @JoinColumn(name = "card_id", nullable = false)
     private VirtualCard card;
 
-
-
     public CardTransaction() {
 
     }
 
-    // id değerini MySQL oluşturacak.
-    // createdAt değerini PayGuard sistemi Instant.now() ile oluşturacak.
+    // Bakiye yükleme gibi idempotency anahtarı gerektirmeyen işlemler
+// bu constructor'ı kullanır.
     public CardTransaction(
             CardTransactionType type,
             CardTransactionStatus status,
@@ -56,11 +63,33 @@ public class CardTransaction {
             CardTransactionDeclineReason declineReason,
             VirtualCard card) {
 
+        this(
+                type,
+                status,
+                amount,
+                merchantName,
+                declineReason,
+                null,
+                card
+        );
+    }
+
+    // Ödeme işlemleri idempotency anahtarını bu constructor ile alır.
+    public CardTransaction(
+            CardTransactionType type,
+            CardTransactionStatus status,
+            BigDecimal amount,
+            String merchantName,
+            CardTransactionDeclineReason declineReason,
+            String idempotencyKey,
+            VirtualCard card) {
+
         this.type = type;
         this.status = status;
         this.amount = amount;
         this.merchantName = merchantName;
         this.declineReason = declineReason;
+        this.idempotencyKey = idempotencyKey;
         this.createdAt = Instant.now();
         this.card = card;
     }
@@ -95,5 +124,9 @@ public class CardTransaction {
 
     public CardTransactionDeclineReason getDeclineReason() {
         return declineReason;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
     }
 }
