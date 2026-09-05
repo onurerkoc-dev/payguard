@@ -3,12 +3,11 @@ package dev.onurerkoc.payguard.service;
 
 import dev.onurerkoc.payguard.dto.*;
 import dev.onurerkoc.payguard.entity.*;
-import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
-import dev.onurerkoc.payguard.exception.InvalidCardLimitException;
-import dev.onurerkoc.payguard.exception.VirtualCardNotFoundException;
+import dev.onurerkoc.payguard.exception.*;
 import dev.onurerkoc.payguard.repository.CardTransactionRepository;
 import dev.onurerkoc.payguard.repository.CustomerRepository;
 import dev.onurerkoc.payguard.repository.VirtualCardRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import dev.onurerkoc.payguard.dto.VirtualCardPaymentSettingsRequest;
@@ -21,6 +20,7 @@ import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /*
 URL: /customers/1/cards
@@ -297,14 +297,36 @@ yazmak zorunlu değil.
     public PaymentAuthorizationResponse authorizePayment(
             Long customerId,
             Long cardId,
+            String idempotencyKey,
             PaymentAuthorizationRequest request) {
-
+        String normalizedIdempotencyKey =
+                validateAndNormalizeIdempotencyKey(idempotencyKey);
         // URL'deki müşterinin gerçekten var olduğunu kontrol eder.
         findCustomerById(customerId);
 
         // Kartı bulur ve URL'deki müşteriye ait olduğunu doğrular.
         VirtualCard card =
                 findCardByIdAndCustomerId(cardId, customerId);
+        // Aynı idempotency anahtarıyla daha önce işlem yapılmış mı?
+        Optional<CardTransaction> existingTransaction =
+                cardTransactionRepository.findByIdempotencyKey(
+                        normalizedIdempotencyKey
+                );
+
+        if (existingTransaction.isPresent()) {
+
+            CardTransaction transaction = existingTransaction.get();
+
+            validateIdempotencyRequest(
+                    transaction,
+                    card,
+                    request
+            );
+
+            // Aynı ödeme isteğinin tekrarıysa bakiye tekrar düşürülmez.
+            // Daha önce oluşturulmuş işlemin sonucu döndürülür.
+            return mapToPaymentAuthorizationResponse(transaction);
+        }
 
         // Ödeme kurallarını sırayla kontrol eder.
         CardTransactionDeclineReason declineReason =
@@ -315,12 +337,16 @@ yazmak zorunlu değil.
             return createDeclinedPayment(
                     card,
                     request,
-                    declineReason
+                    declineReason,
+                    normalizedIdempotencyKey
             );
         }
 
-        // Ret nedeni yoksa ödeme onaylanır.
-        return createApprovedPayment(card, request);
+        return createApprovedPayment(
+                card,
+                request,
+                normalizedIdempotencyKey
+        );
     }
 
 
@@ -524,7 +550,8 @@ Kart bakiyesini azaltmaz.
     private PaymentAuthorizationResponse createDeclinedPayment(
             VirtualCard card,
             PaymentAuthorizationRequest request,
-            CardTransactionDeclineReason declineReason) {
+            CardTransactionDeclineReason declineReason,
+            String idempotencyKey) {
 
         CardTransaction transaction = new CardTransaction(
                 CardTransactionType.PAYMENT,
@@ -532,11 +559,12 @@ Kart bakiyesini azaltmaz.
                 request.getAmount(),
                 request.getMerchantName().trim(),
                 declineReason,
+                idempotencyKey,
                 card
         );
 
         CardTransaction savedTransaction =
-                cardTransactionRepository.save(transaction);
+                savePaymentTransaction(transaction);
 
         return mapToPaymentAuthorizationResponse(savedTransaction);
     }
@@ -546,7 +574,8 @@ Ardından APPROVED ödeme kaydını işlem geçmişine ekler.
 */
     private PaymentAuthorizationResponse createApprovedPayment(
             VirtualCard card,
-            PaymentAuthorizationRequest request) {
+            PaymentAuthorizationRequest request,
+            String idempotencyKey) {
 
         // Ödeme onaylandığı için kart bakiyesi azaltılır.
         card.deductBalance(request.getAmount());
@@ -557,12 +586,72 @@ Ardından APPROVED ödeme kaydını işlem geçmişine ekler.
                 request.getAmount(),
                 request.getMerchantName().trim(),
                 null,
+                idempotencyKey,
                 card
         );
 
         CardTransaction savedTransaction =
-                cardTransactionRepository.save(transaction);
+                savePaymentTransaction(transaction);
 
         return mapToPaymentAuthorizationResponse(savedTransaction);
+    }
+    // Header'dan gelen idempotency anahtarını kontrol eder
+// ve başındaki/sonundaki gereksiz boşlukları temizler.
+    private String validateAndNormalizeIdempotencyKey(
+            String idempotencyKey) {
+
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new InvalidIdempotencyKeyException(
+                    "Idempotency anahtarı boş olamaz"
+            );
+        }
+
+        String normalizedKey = idempotencyKey.trim();
+
+        if (normalizedKey.length() > 100) {
+            throw new InvalidIdempotencyKeyException(
+                    "Idempotency anahtarı en fazla 100 karakter olabilir"
+            );
+        }
+
+        return normalizedKey;
+    }
+    // Aynı idempotency anahtarının yalnızca aynı ödeme isteğinde
+// tekrar kullanılmasına izin verir.
+    private void validateIdempotencyRequest(
+            CardTransaction existingTransaction,
+            VirtualCard card,
+            PaymentAuthorizationRequest request) {
+
+        boolean sameCard =
+                existingTransaction.getCard().getId().equals(card.getId());
+
+        boolean sameAmount =
+                existingTransaction.getAmount()
+                        .compareTo(request.getAmount()) == 0;
+
+        boolean sameMerchant =
+                existingTransaction.getMerchantName()
+                        .equals(request.getMerchantName().trim());
+
+        if (!sameCard || !sameAmount || !sameMerchant) {
+            throw new IdempotencyConflictException(
+                    "Idempotency anahtarı farklı bir ödeme için kullanılmış"
+            );
+        }
+    }
+    // Ödeme işlemini hemen MySQL'e gönderir.
+// Aynı idempotency anahtarı eş zamanlı kullanılırsa
+// veritabanı hatasını anlamlı bir 409 Conflict hatasına dönüştürür.
+    private CardTransaction savePaymentTransaction(
+            CardTransaction transaction) {
+
+        try {
+            return cardTransactionRepository.saveAndFlush(transaction);
+        } catch (DataIntegrityViolationException exception) {
+            throw new IdempotencyConflictException(
+                    "Idempotency anahtarı başka bir ödeme işlemiyle çakıştı"
+            );
+        }
     }
 }

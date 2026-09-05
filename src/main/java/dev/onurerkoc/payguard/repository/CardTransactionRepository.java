@@ -9,12 +9,19 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Optional;
 
 
 // Yönetilen entity: CardTransaction
 // Primary key tipi: Long
 public interface CardTransactionRepository
         extends JpaRepository<CardTransaction, Long> {
+
+    // Idempotency anahtarıyla daha önce oluşturulmuş işlemi bulur.
+    Optional<CardTransaction> findByIdempotencyKey(
+            String idempotencyKey
+    );
+
     @Query("""
         SELECT COALESCE(SUM(t.amount), 0)
         FROM CardTransaction t
@@ -24,15 +31,6 @@ public interface CardTransactionRepository
           AND t.createdAt >= :startTime
           AND t.createdAt < :endTime
         """)
-    /*
-    URL'deki 5
-→ @PathVariable
-→ Service'teki cardId
-→ Repository metodu
-→ @Param
-→ Query'deki :cardId
-→ MySQL sorgusu
-     */
     BigDecimal calculateTotalAmount(
             @Param("cardId") Long cardId,
             @Param("type") CardTransactionType type,

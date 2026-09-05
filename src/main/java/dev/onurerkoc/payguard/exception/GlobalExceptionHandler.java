@@ -108,4 +108,20 @@ oluşan optimistic locking hatasını anlamlı API cevabına dönüştürür.
                                 + "Lütfen işlemi tekrar deneyin."
                 ));
     }
+    @ExceptionHandler(InvalidIdempotencyKeyException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidIdempotencyKey(
+            InvalidIdempotencyKeyException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", exception.getMessage()));
+    }
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<Map<String, String>> handleIdempotencyConflict(
+            IdempotencyConflictException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of("message", exception.getMessage()));
+    }
 }

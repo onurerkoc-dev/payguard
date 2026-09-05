@@ -147,12 +147,14 @@ Sonuç APPROVED veya DECLINED olabilir.
     public ResponseEntity<PaymentAuthorizationResponse> authorizePayment(
             @PathVariable("customerId") Long customerId,
             @PathVariable("cardId") Long cardId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody PaymentAuthorizationRequest request) {
 
         PaymentAuthorizationResponse response =
                 virtualCardService.authorizePayment(
                         customerId,
                         cardId,
+                        idempotencyKey,
                         request
                 );
 
