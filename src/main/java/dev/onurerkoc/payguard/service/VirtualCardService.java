@@ -8,6 +8,9 @@ import dev.onurerkoc.payguard.repository.CardTransactionRepository;
 import dev.onurerkoc.payguard.repository.CustomerRepository;
 import dev.onurerkoc.payguard.repository.VirtualCardRepository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import dev.onurerkoc.payguard.dto.VirtualCardPaymentSettingsRequest;
@@ -173,7 +176,39 @@ public class VirtualCardService {
 
         return mapToResponse(card);
     }
+    /**
+     * Belirtilen müşteriye ait kartın işlem geçmişini
+     * en yeni işlemden başlayarak sayfa sayfa getirir.
+     *
+     * @param customerId müşterinin ID'si
+     * @param cardId işlemleri getirilecek kartın ID'si
+     * @param page istenen sayfa numarası
+     * @param size bir sayfada bulunacak işlem sayısı
+     * @return işlem geçmişinin sayfalı response'u
+     */
+    @Transactional(readOnly = true)
+    public Page<CardTransactionResponse> getTransactionsByCardId(
+            Long customerId,
+            Long cardId,
+            int page,
+            int size) {
 
+        findCustomerById(customerId);
+
+        VirtualCard card =
+                findCardByIdAndCustomerId(cardId, customerId);
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<CardTransaction> transactions =
+                cardTransactionRepository
+                        .findAllByCardIdOrderByCreatedAtDescIdDesc(
+                                card.getId(),
+                                pageable
+                        );
+
+        return transactions.map(this::mapToTransactionResponse);
+    }
     /*
     Bu mekanizmaya dirty checking denir:
 Entity veritabanından getirildi
@@ -594,6 +629,25 @@ Ardından APPROVED ödeme kaydını işlem geçmişine ekler.
                 savePaymentTransaction(transaction);
 
         return mapToPaymentAuthorizationResponse(savedTransaction);
+    }
+
+    /**
+     * CardTransaction entity'sini API'de döndürülecek
+     * CardTransactionResponse DTO'suna dönüştürür.
+     */
+    private CardTransactionResponse mapToTransactionResponse(
+            CardTransaction transaction) {
+
+        return new CardTransactionResponse(
+                transaction.getId(),
+                transaction.getType(),
+                transaction.getStatus(),
+                transaction.getAmount(),
+                transaction.getMerchantName(),
+                transaction.getDeclineReason(),
+                transaction.getCreatedAt(),
+                transaction.getCard().getId()
+        );
     }
     // Header'dan gelen idempotency anahtarını kontrol eder
 // ve başındaki/sonundaki gereksiz boşlukları temizler.

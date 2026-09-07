@@ -3,6 +3,9 @@ package dev.onurerkoc.payguard.controller;
 import dev.onurerkoc.payguard.dto.*;
 import dev.onurerkoc.payguard.service.VirtualCardService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -159,5 +162,33 @@ Sonuç APPROVED veya DECLINED olabilir.
                 );
 
         return ResponseEntity.ok(response);
+    }
+    /**
+     * Belirtilen kartın işlem geçmişini sayfa sayfa getirir.
+     *
+     * Örnek:
+     * GET /api/customers/1/cards/1/transactions?page=0&size=10
+     */
+    @GetMapping("/{customerId}/cards/{cardId}/transactions")
+    public ResponseEntity<Page<CardTransactionResponse>> getCardTransactions(
+            @PathVariable("customerId") Long customerId,
+            @PathVariable("cardId") Long cardId,
+            @RequestParam(defaultValue = "0")
+            @Min(value = 0, message = "Sayfa numarası negatif olamaz")
+            int page,
+            @RequestParam(defaultValue = "10")
+            @Min(value = 1, message = "Sayfa boyutu en az 1 olmalıdır")
+            @Max(value = 100, message = "Sayfa boyutu en fazla 100 olabilir")
+            int size) {
+
+        Page<CardTransactionResponse> transactions =
+                virtualCardService.getTransactionsByCardId(
+                        customerId,
+                        cardId,
+                        page,
+                        size
+                );
+
+        return ResponseEntity.ok(transactions);
     }
 }
