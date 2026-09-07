@@ -6,6 +6,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -124,4 +125,42 @@ oluşan optimistic locking hatasını anlamlı API cevabına dönüştürür.
                 .status(HttpStatus.CONFLICT)
                 .body(Map.of("message", exception.getMessage()));
     }
+    /**
+     * Controller metotlarındaki @RequestParam validation hatalarını yakalar.
+     *
+     * Örnek:
+     * page=-1 veya size=101
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<Map<String, String>>
+    handleMethodValidationErrors(
+            HandlerMethodValidationException exception) {
+
+        Map<String, String> errors = new HashMap<>();
+
+        exception.getParameterValidationResults()
+                .forEach(result -> {
+
+                    String parameterName =
+                            result.getMethodParameter().getParameterName();
+
+                    String fieldName =
+                            parameterName != null
+                                    ? parameterName
+                                    : "parameter";
+
+                    result.getResolvableErrors()
+                            .forEach(error ->
+                                    errors.put(
+                                            fieldName,
+                                            error.getDefaultMessage()
+                                    )
+                            );
+                });
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(errors);
+    }
+
 }

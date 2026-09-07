@@ -3,6 +3,8 @@ package dev.onurerkoc.payguard.repository;
 import dev.onurerkoc.payguard.entity.CardTransaction;
 import dev.onurerkoc.payguard.entity.CardTransactionStatus;
 import dev.onurerkoc.payguard.entity.CardTransactionType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -21,7 +23,12 @@ public interface CardTransactionRepository
     Optional<CardTransaction> findByIdempotencyKey(
             String idempotencyKey
     );
-
+    // Belirtilen karta ait işlemleri sayfa sayfa getirir.
+// En yeni işlemler listenin başında bulunur.
+    Page<CardTransaction> findAllByCardIdOrderByCreatedAtDescIdDesc(
+            Long cardId,
+            Pageable pageable
+    );
     @Query("""
         SELECT COALESCE(SUM(t.amount), 0)
         FROM CardTransaction t
