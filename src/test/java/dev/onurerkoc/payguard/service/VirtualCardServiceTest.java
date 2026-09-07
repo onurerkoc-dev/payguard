@@ -48,6 +48,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import dev.onurerkoc.payguard.exception.InvalidIdempotencyKeyException;
 
 import static org.mockito.Mockito.verifyNoInteractions;
+import org.springframework.dao.DataIntegrityViolationException;
 
 /*
 Gerçek VirtualCardService
@@ -1463,6 +1464,88 @@ class VirtualCardServiceTest {
         verify(cardTransactionRepository)
                 .saveAndFlush(any(CardTransaction.class));
     }
+    @Test
+    void authorizePaymentShouldConvertDatabaseConflictToIdempotencyConflict() {
+
+        // Arrange
+        Long customerId = 1L;
+        Long cardId = 10L;
+        String idempotencyKey = "payment-concurrent";
+
+        Customer customer = new Customer(
+                "Onur",
+                "Erkoç",
+                "onur@example.com"
+        );
+
+        VirtualCard card = new VirtualCard(
+                "Test Kartı",
+                "9999123456789012",
+                12,
+                2099,
+                new BigDecimal("1000.00"),
+                new BigDecimal("5000.00"),
+                customer
+        );
+
+        ReflectionTestUtils.setField(card, "id", cardId);
+        card.loadBalance(new BigDecimal("500.00"));
+
+        PaymentAuthorizationRequest request =
+                new PaymentAuthorizationRequest();
+
+        request.setAmount(new BigDecimal("100.00"));
+        request.setMerchantName("Migros");
+        request.setOnlineTransaction(false);
+        request.setInternationalTransaction(false);
+
+        when(customerRepository.findById(customerId))
+                .thenReturn(Optional.of(customer));
+
+        when(virtualCardRepository.findByIdAndCustomerId(
+                cardId,
+                customerId
+        )).thenReturn(Optional.of(card));
+
+        when(cardTransactionRepository.findByIdempotencyKey(
+                idempotencyKey
+        )).thenReturn(Optional.empty());
+
+        when(cardTransactionRepository.calculateTotalAmount(
+                eq(cardId),
+                eq(CardTransactionType.PAYMENT),
+                eq(CardTransactionStatus.APPROVED),
+                any(Instant.class),
+                any(Instant.class)
+        )).thenReturn(BigDecimal.ZERO);
+
+        // MySQL'deki unique constraint çakışmasını taklit ediyoruz.
+        when(cardTransactionRepository.saveAndFlush(
+                any(CardTransaction.class)
+        )).thenThrow(
+                new DataIntegrityViolationException("Duplicate key")
+        );
+
+        // Act + Assert
+        IdempotencyConflictException exception =
+                assertThrows(
+                        IdempotencyConflictException.class,
+                        () -> virtualCardService.authorizePayment(
+                                customerId,
+                                cardId,
+                                idempotencyKey,
+                                request
+                        )
+                );
+
+        assertEquals(
+                "Idempotency anahtarı başka bir ödeme işlemiyle çakıştı",
+                exception.getMessage()
+        );
+
+        verify(cardTransactionRepository)
+                .saveAndFlush(any(CardTransaction.class));
+    }
     /*
     şu ana kadar test edilenler:
 Müşteri bulunamadığında kart oluşturulmaması
@@ -1480,5 +1563,6 @@ Online işlem izni
 Yurt dışı işlem izni
 Tekrarlanan idempotent istek
 Idempotency çakışması
+Unique constraint
      */
 }
