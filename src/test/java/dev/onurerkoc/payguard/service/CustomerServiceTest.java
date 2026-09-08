@@ -457,4 +457,42 @@ class CustomerServiceTest {
         verify(customerRepository, never())
                 .delete(any(Customer.class));
     }
+    @Test
+    void updateCustomer_whenEmailDoesNotChange_shouldUpdateWithoutCheckingEmail() {
+
+        // GIVEN: Mevcut müşteri ve aynı e-postayı taşıyan güncelleme isteği.
+        Customer customer = new Customer(
+                "Onur",
+                "Erkoç",
+                "onur@example.com"
+        );
+
+        ReflectionTestUtils.setField(customer, "id", 1L);
+
+        CustomerUpdateRequest request = new CustomerUpdateRequest();
+        request.setFirstName("Onur Can");
+        request.setLastName("Erkoç");
+        request.setEmail("onur@example.com");
+
+        when(customerRepository.findById(1L))
+                .thenReturn(Optional.of(customer));
+
+        when(customerRepository.save(any(Customer.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // WHEN
+        CustomerResponse response =
+                customerService.updateCustomer(1L, request);
+
+        // THEN
+        assertEquals(1L, response.getId());
+        assertEquals("Onur Can", response.getFirstName());
+        assertEquals("onur@example.com", response.getEmail());
+
+        // E-posta değişmediği için benzersizlik sorgusu gereksizdir.
+        verify(customerRepository, never())
+                .existsByEmail(anyString());
+
+        verify(customerRepository).save(customer);
+    }
 }
