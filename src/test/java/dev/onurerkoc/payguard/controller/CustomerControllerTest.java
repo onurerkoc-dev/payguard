@@ -1,34 +1,36 @@
 package dev.onurerkoc.payguard.controller;
 
-import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
-import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
-import dev.onurerkoc.payguard.service.CustomerService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
 import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
 import dev.onurerkoc.payguard.dto.CustomerResponse;
+import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
+import dev.onurerkoc.payguard.exception.CustomerHasVirtualCardsException;
+import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
+import dev.onurerkoc.payguard.exception.EmailAlreadyExistsException;
+import dev.onurerkoc.payguard.service.CustomerService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
-
-import static org.mockito.ArgumentMatchers.eq;
-
-import java.util.List;
-import dev.onurerkoc.payguard.exception.EmailAlreadyExistsException;
-import dev.onurerkoc.payguard.exception.CustomerHasVirtualCardsException;
-
-import static org.mockito.Mockito.doThrow;
 
 
 // CustomerController ve ilgili Spring MVC bileşenlerini test için hazırlar.
