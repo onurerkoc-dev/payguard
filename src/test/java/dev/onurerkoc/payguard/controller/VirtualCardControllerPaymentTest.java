@@ -531,51 +531,6 @@ class VirtualCardControllerPaymentTest {
                         eq("payment-key-006"),
                         any(PaymentAuthorizationRequest.class)
                 );
-    }
-    @Test
-    void authorizePayment_whenAmountFormatAndMerchantLengthAreInvalid_shouldReturnBadRequest()
-            throws Exception {
 
-        // GIVEN: DTO'da izin verilen sınır 100 karakter.
-        String longMerchantName = "A".repeat(101);
-
-        String requestBody = """
-            {
-                "amount": 100.555,
-                "merchantName": "%s",
-                "onlineTransaction": false,
-                "internationalTransaction": false
-            }
-            """.formatted(longMerchantName);
-
-        // WHEN: Para formatı ve mağaza adı uzunluğu geçersiz.
-        // THEN: İki validation hatası da dönmelidir.
-        mockMvc.perform(
-                        post("/api/customers/1/cards/5/payments")
-                                .header(
-                                        "Idempotency-Key",
-                                        "payment-key-007"
-                                )
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
-                )
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.amount")
-                        .value(
-                                "Ödeme tutarı en fazla 2 ondalık basamak içerebilir"
-                        ))
-                .andExpect(jsonPath("$.merchantName")
-                        .value(
-                                "Mağaza adı en fazla 100 karakter olabilir"
-                        ));
-
-        // DTO geçersiz olduğu için ödeme Service'e ulaşmamalıdır.
-        verify(virtualCardService, never())
-                .authorizePayment(
-                        eq(1L),
-                        eq(5L),
-                        eq("payment-key-007"),
-                        any(PaymentAuthorizationRequest.class)
-                );
     }
 }

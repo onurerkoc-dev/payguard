@@ -316,4 +316,35 @@ Service ve veritabanı katmanına geçilmez
                         any(VirtualCardCreateRequest.class)
                 );
     }
+    @Test
+    void createCard_whenLimitsAreMissing_shouldReturnBadRequest()
+            throws Exception {
+
+        // GIVEN: Limit alanları JSON içerisinde hiç gönderilmiyor.
+        String requestBody = """
+            {
+                "cardName": "Alışveriş Kartım"
+            }
+            """;
+
+        // WHEN: Eksik alanlarla kart oluşturma isteği gönderiliyor.
+        // THEN: @NotNull validation mesajları dönmelidir.
+        mockMvc.perform(
+                        post("/api/customers/1/cards")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.singleTransactionLimit")
+                        .value("Tek işlem limiti zorunludur"))
+                .andExpect(jsonPath("$.dailyLimit")
+                        .value("Günlük limit zorunludur"));
+
+        // Validation başarısız olduğu için Service çağrılmamalıdır.
+        verify(virtualCardService, never())
+                .createCard(
+                        eq(1L),
+                        any(VirtualCardCreateRequest.class)
+                );
+    }
 }
