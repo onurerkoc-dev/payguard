@@ -24,6 +24,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 
 /*
 URL: /customers/1/cards
@@ -567,13 +568,18 @@ Kartın işlemden sonraki mevcut bakiyesini de cevaba ekler.
     private PaymentAuthorizationResponse
     mapToPaymentAuthorizationResponse(CardTransaction transaction) {
 
+        BigDecimal remainingBalance =
+                transaction.getBalanceAfterTransaction() != null
+                        ? transaction.getBalanceAfterTransaction()
+                        : transaction.getCard().getBalance();
+
         return new PaymentAuthorizationResponse(
                 transaction.getId(),
                 transaction.getStatus(),
                 transaction.getDeclineReason(),
                 transaction.getAmount(),
                 transaction.getMerchantName(),
-                transaction.getCard().getBalance(),
+                remainingBalance,
                 transaction.getCreatedAt(),
                 transaction.getCard().getId()
         );
@@ -595,6 +601,9 @@ Kart bakiyesini azaltmaz.
                 request.getMerchantName().trim(),
                 declineReason,
                 idempotencyKey,
+                request.getOnlineTransaction(),
+                request.getInternationalTransaction(),
+                card.getBalance(),
                 card
         );
 
@@ -622,6 +631,9 @@ Ardından APPROVED ödeme kaydını işlem geçmişine ekler.
                 request.getMerchantName().trim(),
                 null,
                 idempotencyKey,
+                request.getOnlineTransaction(),
+                request.getInternationalTransaction(),
+                card.getBalance(),
                 card
         );
 
@@ -688,12 +700,32 @@ Ardından APPROVED ödeme kaydını işlem geçmişine ekler.
                 existingTransaction.getMerchantName()
                         .equals(request.getMerchantName().trim());
 
-        if (!sameCard || !sameAmount || !sameMerchant) {
+        boolean sameOnlineTransaction =
+                existingTransaction.getOnlineTransaction() == null
+                        || Objects.equals(
+                        existingTransaction.getOnlineTransaction(),
+                        request.getOnlineTransaction()
+                );
+
+        boolean sameInternationalTransaction =
+                existingTransaction.getInternationalTransaction() == null
+                        || Objects.equals(
+                        existingTransaction.getInternationalTransaction(),
+                        request.getInternationalTransaction()
+                );
+
+        if (!sameCard
+                || !sameAmount
+                || !sameMerchant
+                || !sameOnlineTransaction
+                || !sameInternationalTransaction) {
+
             throw new IdempotencyConflictException(
                     "Idempotency anahtarı farklı bir ödeme için kullanılmış"
             );
         }
     }
+
     // Ödeme işlemini hemen MySQL'e gönderir.
 // Aynı idempotency anahtarı eş zamanlı kullanılırsa
 // veritabanı hatasını anlamlı bir 409 Conflict hatasına dönüştürür.

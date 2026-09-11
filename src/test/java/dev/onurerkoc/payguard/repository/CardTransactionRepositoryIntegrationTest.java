@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import dev.onurerkoc.payguard.entity.CardTransactionDeclineReason;
 import java.time.Instant;
 import java.util.List;
-
+import jakarta.persistence.EntityManager;
 
 @DataJpaTest
 @Import(MySqlTestcontainersConfiguration.class)
@@ -36,6 +36,9 @@ class CardTransactionRepositoryIntegrationTest {
 
     private VirtualCard card;
 
+
+    @Autowired
+    private EntityManager entityManager;
     @BeforeEach
     void setUp() {
 
@@ -179,6 +182,55 @@ class CardTransactionRepositoryIntegrationTest {
         assertEquals(
                 0,
                 new BigDecimal("300.00").compareTo(total)
+        );
+    }
+    @Test
+    void save_shouldPersistPaymentDetailsAndBalanceSnapshot() {
+
+        // Arrange
+        CardTransaction transaction = new CardTransaction(
+                CardTransactionType.PAYMENT,
+                CardTransactionStatus.APPROVED,
+                new BigDecimal("100.00"),
+                "Amazon",
+                null,
+                "payment-details-integration-001",
+                true,
+                true,
+                new BigDecimal("400.00"),
+                card
+        );
+
+        // Act: INSERT sorgusunun MySQL'e gönderilmesini sağlar.
+        CardTransaction savedTransaction =
+                cardTransactionRepository.saveAndFlush(transaction);
+
+        Long transactionId = savedTransaction.getId();
+
+        // JPA'nın bellekte tuttuğu nesneleri temizler.
+        // Böylece aşağıdaki findById gerçek MySQL'den veri okumak zorunda kalır.
+        entityManager.clear();
+
+        CardTransaction reloadedTransaction =
+                cardTransactionRepository.findById(transactionId)
+                        .orElseThrow();
+
+        // Assert
+        assertEquals(
+                Boolean.TRUE,
+                reloadedTransaction.getOnlineTransaction()
+        );
+
+        assertEquals(
+                Boolean.TRUE,
+                reloadedTransaction.getInternationalTransaction()
+        );
+
+        assertEquals(
+                0,
+                new BigDecimal("400.00").compareTo(
+                        reloadedTransaction.getBalanceAfterTransaction()
+                )
         );
     }
 }
