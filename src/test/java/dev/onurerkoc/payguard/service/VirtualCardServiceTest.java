@@ -543,7 +543,24 @@ class VirtualCardServiceTest {
                 new BigDecimal("100.00"),
                 savedTransaction.getAmount()
         );
+// Reddedilen ödeme de idempotency karşılaştırması için
+// işlem özelliklerini saklamalıdır.
+        assertEquals(
+                Boolean.FALSE,
+                savedTransaction.getOnlineTransaction()
+        );
 
+        assertEquals(
+                Boolean.FALSE,
+                savedTransaction.getInternationalTransaction()
+        );
+
+// Reddedilen ödemede bakiye düşmediği için
+// işlem sonrası bakiye 500 TL olarak kaydedilmelidir.
+        assertEquals(
+                new BigDecimal("500.00"),
+                savedTransaction.getBalanceAfterTransaction()
+        );
         assertSame(card, savedTransaction.getCard());
     }
     @Test
@@ -667,7 +684,23 @@ class VirtualCardServiceTest {
                 new BigDecimal("100.00"),
                 savedTransaction.getAmount()
         );
+// İstek türlerinin işlem kaydına aktarıldığını doğrular.
+        assertEquals(
+                Boolean.FALSE,
+                savedTransaction.getOnlineTransaction()
+        );
 
+        assertEquals(
+                Boolean.FALSE,
+                savedTransaction.getInternationalTransaction()
+        );
+
+// İşlemden sonra kalan bakiyenin işlem anındaki haliyle
+// transaction kaydına alındığını doğrular.
+        assertEquals(
+                new BigDecimal("400.00"),
+                savedTransaction.getBalanceAfterTransaction()
+        );
         assertSame(card, savedTransaction.getCard());
     }
     @Test
@@ -1175,11 +1208,14 @@ class VirtualCardServiceTest {
 
         ReflectionTestUtils.setField(card, "id", cardId);
 
-        // İlk ödeme daha önce yapılmış ve kartta 400 TL kalmış gibi
-        // mevcut durumu hazırlıyoruz.
-        card.loadBalance(new BigDecimal("400.00"));
+// Tekrar istek bakiyeyi yeniden düşürmemelidir.
+// Kartın güncel bakiyesi 300 TL olarak kalır.
+        card.loadBalance(new BigDecimal("300.00"));
 
         // Daha önce kaydedilmiş ödeme işlemi.
+        // İlk ödeme tamamlandığında kartta 400 TL kalmıştı.
+// Kartın güncel bakiyesi artık 300 TL olsa da bu işlem
+// kendi gerçekleştiği andaki 400 TL bakiyeyi saklar.
         CardTransaction existingTransaction =
                 new CardTransaction(
                         CardTransactionType.PAYMENT,
@@ -1188,6 +1224,9 @@ class VirtualCardServiceTest {
                         "Migros",
                         null,
                         idempotencyKey,
+                        false,
+                        false,
+                        new BigDecimal("400.00"),
                         card
                 );
 
@@ -1236,12 +1275,15 @@ class VirtualCardServiceTest {
         assertEquals("Migros", response.getMerchantName());
         assertEquals(cardId, response.getCardId());
 
-        // Bakiye ikinci kez düşmemeli ve 400 TL kalmalıdır.
+// Tekrar istek bakiyeyi yeniden düşürmemelidir.
+// Kartın güncel bakiyesi 300 TL olarak kalır.
         assertEquals(
-                new BigDecimal("400.00"),
+                new BigDecimal("300.00"),
                 card.getBalance()
         );
 
+// Fakat response, kartın güncel bakiyesini değil,
+// ilk ödeme tamamlandığında kaydedilen bakiyeyi döndürmelidir.
         assertEquals(
                 new BigDecimal("400.00"),
                 response.getRemainingBalance()
@@ -1544,6 +1586,275 @@ class VirtualCardServiceTest {
         );
 
         verify(cardTransactionRepository)
+                .saveAndFlush(any(CardTransaction.class));
+    }
+    @Test
+    void authorizePaymentShouldThrowConflictWhenOnlineTransactionTypeChanges() {
+
+        // Arrange
+        Long customerId = 1L;
+        Long cardId = 10L;
+        String idempotencyKey = "payment-online-conflict";
+
+        Customer customer = new Customer(
+                "Onur",
+                "Erkoç",
+                "onur@example.com"
+        );
+
+        VirtualCard card = new VirtualCard(
+                "Test Kartı",
+                "9999123456789012",
+                12,
+                2099,
+                new BigDecimal("1000.00"),
+                new BigDecimal("5000.00"),
+                customer
+        );
+
+        ReflectionTestUtils.setField(card, "id", cardId);
+        card.loadBalance(new BigDecimal("500.00"));
+
+        // Bu anahtar daha önce fiziksel ödeme için kullanılmış.
+        CardTransaction existingTransaction =
+                new CardTransaction(
+                        CardTransactionType.PAYMENT,
+                        CardTransactionStatus.APPROVED,
+                        new BigDecimal("100.00"),
+                        "Migros",
+                        null,
+                        idempotencyKey,
+                        false,
+                        false,
+                        new BigDecimal("400.00"),
+                        card
+                );
+
+        PaymentAuthorizationRequest request =
+                new PaymentAuthorizationRequest();
+
+        request.setAmount(new BigDecimal("100.00"));
+        request.setMerchantName("Migros");
+
+        // Yeni istek aynı tutar ve mağazaya sahip olsa da
+        // bu kez internet ödemesi olarak gönderiliyor.
+        request.setOnlineTransaction(true);
+        request.setInternationalTransaction(false);
+
+        when(customerRepository.findById(customerId))
+                .thenReturn(Optional.of(customer));
+
+        when(virtualCardRepository.findByIdAndCustomerId(
+                cardId,
+                customerId
+        )).thenReturn(Optional.of(card));
+
+        when(cardTransactionRepository.findByIdempotencyKey(
+                idempotencyKey
+        )).thenReturn(Optional.of(existingTransaction));
+
+        // Act + Assert
+        IdempotencyConflictException exception =
+                assertThrows(
+                        IdempotencyConflictException.class,
+                        () -> virtualCardService.authorizePayment(
+                                customerId,
+                                cardId,
+                                idempotencyKey,
+                                request
+                        )
+                );
+
+        assertEquals(
+                "Idempotency anahtarı farklı bir ödeme için kullanılmış",
+                exception.getMessage()
+        );
+
+        // Çakışan istek bakiyeyi değiştirmemelidir.
+        assertEquals(
+                new BigDecimal("500.00"),
+                card.getBalance()
+        );
+
+        // Çakışan istek için yeni transaction oluşturulmamalıdır.
+        verify(cardTransactionRepository, never())
+                .saveAndFlush(any(CardTransaction.class));
+    }
+    @Test
+    void authorizePaymentShouldThrowConflictWhenInternationalTransactionTypeChanges() {
+
+        // Arrange
+        Long customerId = 1L;
+        Long cardId = 10L;
+        String idempotencyKey = "payment-international-conflict";
+
+        Customer customer = new Customer(
+                "Onur",
+                "Erkoç",
+                "onur@example.com"
+        );
+
+        VirtualCard card = new VirtualCard(
+                "Test Kartı",
+                "9999123456789012",
+                12,
+                2099,
+                new BigDecimal("1000.00"),
+                new BigDecimal("5000.00"),
+                customer
+        );
+
+        ReflectionTestUtils.setField(card, "id", cardId);
+        card.loadBalance(new BigDecimal("500.00"));
+
+        // Bu anahtar daha önce yurt içi ödeme için kullanılmış.
+        CardTransaction existingTransaction =
+                new CardTransaction(
+                        CardTransactionType.PAYMENT,
+                        CardTransactionStatus.APPROVED,
+                        new BigDecimal("100.00"),
+                        "Migros",
+                        null,
+                        idempotencyKey,
+                        false,
+                        false,
+                        new BigDecimal("400.00"),
+                        card
+                );
+
+        PaymentAuthorizationRequest request =
+                new PaymentAuthorizationRequest();
+
+        request.setAmount(new BigDecimal("100.00"));
+        request.setMerchantName("Migros");
+        request.setOnlineTransaction(false);
+
+        // Aynı anahtar bu kez yurt dışı işlem için kullanılıyor.
+        request.setInternationalTransaction(true);
+
+        when(customerRepository.findById(customerId))
+                .thenReturn(Optional.of(customer));
+
+        when(virtualCardRepository.findByIdAndCustomerId(
+                cardId,
+                customerId
+        )).thenReturn(Optional.of(card));
+
+        when(cardTransactionRepository.findByIdempotencyKey(
+                idempotencyKey
+        )).thenReturn(Optional.of(existingTransaction));
+
+        // Act + Assert
+        IdempotencyConflictException exception =
+                assertThrows(
+                        IdempotencyConflictException.class,
+                        () -> virtualCardService.authorizePayment(
+                                customerId,
+                                cardId,
+                                idempotencyKey,
+                                request
+                        )
+                );
+
+        assertEquals(
+                "Idempotency anahtarı farklı bir ödeme için kullanılmış",
+                exception.getMessage()
+        );
+
+        // Çakışan istek bakiyeyi değiştirmemelidir.
+        assertEquals(
+                new BigDecimal("500.00"),
+                card.getBalance()
+        );
+
+        // Yeni bir transaction oluşturulmamalıdır.
+        verify(cardTransactionRepository, never())
+                .saveAndFlush(any(CardTransaction.class));
+    }
+    @Test
+    void authorizePaymentShouldSupportLegacyTransactionWithoutPaymentDetails() {
+
+        // Arrange
+        Long customerId = 1L;
+        Long cardId = 10L;
+        String idempotencyKey = "legacy-payment-001";
+
+        Customer customer = new Customer(
+                "Onur",
+                "Erkoç",
+                "onur@example.com"
+        );
+
+        VirtualCard card = new VirtualCard(
+                "Test Kartı",
+                "9999123456789012",
+                12,
+                2099,
+                new BigDecimal("1000.00"),
+                new BigDecimal("5000.00"),
+                customer
+        );
+
+        ReflectionTestUtils.setField(card, "id", cardId);
+        card.loadBalance(new BigDecimal("300.00"));
+
+        // Eski constructor kullanılıyor.
+        // Bu nedenle yeni ödeme detayları ve bakiye snapshot'ı null olur.
+        CardTransaction legacyTransaction =
+                new CardTransaction(
+                        CardTransactionType.PAYMENT,
+                        CardTransactionStatus.APPROVED,
+                        new BigDecimal("100.00"),
+                        "Migros",
+                        null,
+                        idempotencyKey,
+                        card
+                );
+
+        PaymentAuthorizationRequest request =
+                new PaymentAuthorizationRequest();
+
+        request.setAmount(new BigDecimal("100.00"));
+        request.setMerchantName("Migros");
+        request.setOnlineTransaction(false);
+        request.setInternationalTransaction(false);
+
+        when(customerRepository.findById(customerId))
+                .thenReturn(Optional.of(customer));
+
+        when(virtualCardRepository.findByIdAndCustomerId(
+                cardId,
+                customerId
+        )).thenReturn(Optional.of(card));
+
+        when(cardTransactionRepository.findByIdempotencyKey(
+                idempotencyKey
+        )).thenReturn(Optional.of(legacyTransaction));
+
+        // Act
+        PaymentAuthorizationResponse response =
+                virtualCardService.authorizePayment(
+                        customerId,
+                        cardId,
+                        idempotencyKey,
+                        request
+                );
+
+        // Assert
+        assertEquals(
+                CardTransactionStatus.APPROVED,
+                response.getStatus()
+        );
+
+        // Eski işlemde balanceAfterTransaction bulunmadığı için
+        // sistem güvenli fallback olarak kartın mevcut bakiyesini kullanır.
+        assertEquals(
+                new BigDecimal("300.00"),
+                response.getRemainingBalance()
+        );
+
+        // Tekrar istek yeni ödeme oluşturmamalıdır.
+        verify(cardTransactionRepository, never())
                 .saveAndFlush(any(CardTransaction.class));
     }
     /*
