@@ -562,9 +562,10 @@ Bu metot bakiyeyi değiştirmez ve işlem kaydı oluşturmaz.
         return null;
     }
     /*
-Kaydedilmiş ödeme işlemini API response DTO'suna dönüştürür.
-Kartın işlemden sonraki mevcut bakiyesini de cevaba ekler.
-*/
+    Kaydedilmiş ödeme işlemini API response DTO'suna dönüştürür.
+    Yeni işlemlerde işlem anında kaydedilen bakiye snapshot'ını kullanır.
+    Eski kayıtlarda snapshot yoksa kartın mevcut bakiyesine döner.
+    */
     private PaymentAuthorizationResponse
     mapToPaymentAuthorizationResponse(CardTransaction transaction) {
 

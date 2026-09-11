@@ -543,7 +543,24 @@ class VirtualCardServiceTest {
                 new BigDecimal("100.00"),
                 savedTransaction.getAmount()
         );
+// Reddedilen ödeme de idempotency karşılaştırması için
+// işlem özelliklerini saklamalıdır.
+        assertEquals(
+                Boolean.FALSE,
+                savedTransaction.getOnlineTransaction()
+        );
 
+        assertEquals(
+                Boolean.FALSE,
+                savedTransaction.getInternationalTransaction()
+        );
+
+// Reddedilen ödemede bakiye düşmediği için
+// işlem sonrası bakiye 500 TL olarak kaydedilmelidir.
+        assertEquals(
+                new BigDecimal("500.00"),
+                savedTransaction.getBalanceAfterTransaction()
+        );
         assertSame(card, savedTransaction.getCard());
     }
     @Test
