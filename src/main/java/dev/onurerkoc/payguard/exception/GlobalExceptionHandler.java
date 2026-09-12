@@ -162,5 +162,12 @@ oluşan optimistic locking hatasını anlamlı API cevabına dönüştürür.
                 .status(HttpStatus.BAD_REQUEST)
                 .body(errors);
     }
+    @ExceptionHandler(InvalidPasswordException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidPassword(
+            InvalidPasswordException exception) {
 
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", exception.getMessage()));
+    }
 }
