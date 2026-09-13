@@ -11,6 +11,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import dev.onurerkoc.payguard.dto.VirtualCardPaymentSettingsRequest;
@@ -42,6 +43,14 @@ Kart kaydedilir
 MySQL: virtual_cards.customer_id = 1
  */
 @Service
+
+// GÜVENLİK NOTU:
+// Bu sınıftaki her public iş metodu customerId parametresi taşımalıdır.
+// customerId almayan yeni bir public metot eklenirse
+// ayrıca uygun bir metot güvenliği kuralı tanımlanmalıdır.
+@PreAuthorize(
+        "@customerAccessPolicy.isOwner(authentication, #customerId)"
+)
 public class VirtualCardService {
 
     private final VirtualCardRepository virtualCardRepository;

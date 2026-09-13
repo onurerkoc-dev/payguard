@@ -8,6 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -19,6 +20,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import dev.onurerkoc.payguard.exception.VirtualCardNotFoundException;
@@ -27,6 +29,10 @@ import dev.onurerkoc.payguard.exception.InvalidCardLimitException;
 import dev.onurerkoc.payguard.dto.VirtualCardPaymentSettingsRequest;
 
 @WebMvcTest(VirtualCardController.class)
+@WithMockUser(
+        username = "onur@example.com",
+        roles = "USER"
+)
 class VirtualCardControllerManagementTest {
 
     // Gerçek sunucu açmadan Controller'a HTTP isteği gönderir.
@@ -73,6 +79,7 @@ class VirtualCardControllerManagementTest {
         // 250 TL yükleme isteği gönderiyoruz.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/balance")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -119,6 +126,7 @@ class VirtualCardControllerManagementTest {
         // THEN: DTO validation 400 Bad Request döndürmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/balance")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -151,6 +159,7 @@ class VirtualCardControllerManagementTest {
         // THEN: @NotNull validation mesajı dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/balance")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -181,6 +190,7 @@ class VirtualCardControllerManagementTest {
         // THEN: @Digits validation mesajı dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/balance")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -226,6 +236,7 @@ class VirtualCardControllerManagementTest {
         // THEN: Güncel kartın frozen alanı true dönmelidir.
         mockMvc.perform(
                         patch("/api/customers/1/cards/5/freeze")
+                                .with(csrf())
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(5))
@@ -263,6 +274,7 @@ class VirtualCardControllerManagementTest {
         // THEN: frozen alanı false dönmelidir.
         mockMvc.perform(
                         patch("/api/customers/1/cards/5/unfreeze")
+                                .with(csrf())
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(5))
@@ -288,6 +300,7 @@ class VirtualCardControllerManagementTest {
         // THEN: GlobalExceptionHandler 404 cevabı üretmelidir.
         mockMvc.perform(
                         patch("/api/customers/1/cards/99/freeze")
+                                .with(csrf())
                 )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message")
@@ -333,6 +346,7 @@ class VirtualCardControllerManagementTest {
         // THEN: Güncellenmiş limitlerin JSON cevabında dönmesini bekliyoruz.
         mockMvc.perform(
                         patch("/api/customers/1/cards/5/limits")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -388,6 +402,7 @@ class VirtualCardControllerManagementTest {
         // THEN: DTO validation hataları dönmelidir.
         mockMvc.perform(
                         patch("/api/customers/1/cards/5/limits")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -438,6 +453,7 @@ class VirtualCardControllerManagementTest {
         // THEN: GlobalExceptionHandler 400 cevabı üretmelidir.
         mockMvc.perform(
                         patch("/api/customers/1/cards/5/limits")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -495,6 +511,7 @@ class VirtualCardControllerManagementTest {
                         patch(
                                 "/api/customers/1/cards/5/payment-settings"
                         )
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -548,6 +565,7 @@ class VirtualCardControllerManagementTest {
                         patch(
                                 "/api/customers/1/cards/5/payment-settings"
                         )
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )

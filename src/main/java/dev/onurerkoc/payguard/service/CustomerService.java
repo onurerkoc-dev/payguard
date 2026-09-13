@@ -1,6 +1,6 @@
 package dev.onurerkoc.payguard.service;
 
-
+import org.springframework.security.access.prepost.PreAuthorize;
 import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
 import dev.onurerkoc.payguard.dto.CustomerResponse;
 import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
@@ -12,10 +12,8 @@ import dev.onurerkoc.payguard.repository.VirtualCardRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import dev.onurerkoc.payguard.entity.Customer;
-
 import java.util.ArrayList;
 import java.util.List;
-
 
 @Service
 public class CustomerService {
@@ -28,7 +26,7 @@ public class CustomerService {
         this.customerRepository = customerRepository;
         this.virtualCardRepository = virtualCardRepository;
     }
-
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public CustomerResponse createCustomer(CustomerCreateRequest request) {
 
@@ -50,7 +48,7 @@ public class CustomerService {
                 savedCustomer.getEmail()
         );
     }
-
+    @PreAuthorize("hasRole('ADMIN')")
     public List<CustomerResponse> getAllCustomers() {
         List<Customer> customers = customerRepository.findAll();
         List<CustomerResponse> responses = new ArrayList<>();
@@ -65,6 +63,10 @@ public class CustomerService {
         }
         return responses;
     }
+
+    @PreAuthorize(
+            "@customerAccessPolicy.isOwner(authentication, #id)"
+    )
     public CustomerResponse getCustomerById(Long id) {
 
         Customer customer = customerRepository.findById(id)
@@ -79,6 +81,9 @@ public class CustomerService {
                 customer.getEmail()
         );
     }
+    @PreAuthorize(
+            "@customerAccessPolicy.isOwner(authentication, #id)"
+    )
     @Transactional
     public CustomerResponse updateCustomer(
             Long id,
@@ -110,6 +115,9 @@ public class CustomerService {
                 updatedCustomer.getEmail()
         );
     }
+    @PreAuthorize(
+            "@customerAccessPolicy.isOwner(authentication, #id)"
+    )
     @Transactional
     public void deleteCustomer(Long id) {
 
