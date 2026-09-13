@@ -12,7 +12,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import org.springframework.security.test.context.support.WithMockUser;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -26,6 +28,10 @@ import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
 import dev.onurerkoc.payguard.exception.InvalidCardLimitException;
 
 @WebMvcTest(VirtualCardController.class)
+@WithMockUser(
+        username = "onur@example.com",
+        roles = "USER"
+)
 class VirtualCardControllerCreateTest {
 
     // Gerçek HTTP sunucusu açmadan Controller'a istek göndermemizi sağlar.
@@ -74,6 +80,7 @@ class VirtualCardControllerCreateTest {
         // THEN: 201 ve dönen JSON alanlarını doğruluyoruz.
         mockMvc.perform(
                         post("/api/customers/1/cards")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -133,6 +140,7 @@ class VirtualCardControllerCreateTest {
         // THEN: Validation isteği durdurmalı ve 400 dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -174,6 +182,7 @@ Service ve veritabanı katmanına geçilmez
         // THEN: Her iki alanın validation mesajını doğruluyoruz.
         mockMvc.perform(
                         post("/api/customers/1/cards")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -222,6 +231,7 @@ Service ve veritabanı katmanına geçilmez
         // THEN: GlobalExceptionHandler 404 ve hata JSON'u dönmeli.
         mockMvc.perform(
                         post("/api/customers/99/cards")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -263,6 +273,7 @@ Service ve veritabanı katmanına geçilmez
         // THEN: GlobalExceptionHandler 400 cevabı üretmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -296,6 +307,7 @@ Service ve veritabanı katmanına geçilmez
         // THEN: @Digits validation mesajlarını bekliyoruz.
         mockMvc.perform(
                         post("/api/customers/1/cards")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -331,6 +343,7 @@ Service ve veritabanı katmanına geçilmez
         // THEN: @NotNull validation mesajları dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )

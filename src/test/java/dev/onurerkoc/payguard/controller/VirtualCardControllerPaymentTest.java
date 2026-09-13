@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import dev.onurerkoc.payguard.entity.CardTransactionDeclineReason;
@@ -31,6 +33,10 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 
 @WebMvcTest(VirtualCardController.class)
+@WithMockUser(
+        username = "onur@example.com",
+        roles = "USER"
+)
 class VirtualCardControllerPaymentTest {
 
     // Gerçek sunucu açmadan HTTP isteği göndermemizi sağlar.
@@ -81,6 +87,7 @@ class VirtualCardControllerPaymentTest {
         // THEN: Onaylanmış ödeme cevabı dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/payments")
+                                .with(csrf())
                                 .header(
                                         "Idempotency-Key",
                                         "payment-key-001"
@@ -173,6 +180,7 @@ class VirtualCardControllerPaymentTest {
         // ödeme kararı ise DECLINED dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/payments")
+                                .with(csrf())
                                 .header(
                                         "Idempotency-Key",
                                         "payment-key-002"
@@ -219,6 +227,7 @@ class VirtualCardControllerPaymentTest {
         // THEN: Spring MVC isteği 400 Bad Request ile durdurmalıdır.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/payments")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -265,6 +274,7 @@ class VirtualCardControllerPaymentTest {
         // THEN: GlobalExceptionHandler 400 cevabı döndürmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/payments")
+                                .with(csrf())
                                 .header("Idempotency-Key", "   ")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
@@ -311,6 +321,7 @@ class VirtualCardControllerPaymentTest {
         // THEN: GlobalExceptionHandler 409 Conflict dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/payments")
+                                .with(csrf())
                                 .header(
                                         "Idempotency-Key",
                                         "payment-key-001"
@@ -351,6 +362,7 @@ class VirtualCardControllerPaymentTest {
         // THEN: DTO validation bütün alan hatalarını döndürmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/payments")
+                                .with(csrf())
                                 .header(
                                         "Idempotency-Key",
                                         "payment-key-003"
@@ -404,6 +416,7 @@ class VirtualCardControllerPaymentTest {
         // THEN: İki validation mesajı da dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/payments")
+                                .with(csrf())
                                 .header(
                                         "Idempotency-Key",
                                         "payment-key-004"
@@ -460,6 +473,7 @@ class VirtualCardControllerPaymentTest {
         // THEN: GlobalExceptionHandler 404 dönmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/99/payments")
+                                .with(csrf())
                                 .header(
                                         "Idempotency-Key",
                                         "payment-key-005"
@@ -510,6 +524,7 @@ class VirtualCardControllerPaymentTest {
         // THEN: GlobalExceptionHandler 409 Conflict döndürmelidir.
         mockMvc.perform(
                         post("/api/customers/1/cards/5/payments")
+                                .with(csrf())
                                 .header(
                                         "Idempotency-Key",
                                         "payment-key-006"

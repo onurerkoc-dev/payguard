@@ -12,9 +12,13 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockHttpSession;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,6 +28,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -31,10 +36,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.security.test.context.support.WithAnonymousUser;
+import static org.mockito.Mockito.verifyNoInteractions;
+import dev.onurerkoc.payguard.config.SecurityConfig;
+import org.springframework.context.annotation.Import;
+import dev.onurerkoc.payguard.security.PayGuardUserDetailsService;
 
-
-// CustomerController ve ilgili Spring MVC bileşenlerini test için hazırlar.
 @WebMvcTest(CustomerController.class)
+@Import(SecurityConfig.class)
+@WithMockUser(username = "test-user", roles = "USER")
 class CustomerControllerTest {
 
     // Gerçek sunucu açmadan istek göndermemizi sağlar.
@@ -45,8 +55,12 @@ class CustomerControllerTest {
     @MockitoBean
     private CustomerService customerService;
 
+    @MockitoBean
+    private PayGuardUserDetailsService userDetailsService;
+
     @Test
-    void createCustomer_whenRequestIsValid_shouldReturnCreated() throws Exception {
+    void createCustomer_whenRequestIsValid_shouldReturnCreated()
+            throws Exception {
 
         // GIVEN: Sahte servisin döndüreceği müşteri cevabını hazırlıyoruz.
         CustomerResponse response = new CustomerResponse(
@@ -68,10 +82,11 @@ class CustomerControllerTest {
             }
             """;
 
-        // WHEN: Controller'a geçerli bir POST isteği gönderiyoruz.
+        // WHEN: Geçerli JSON ve CSRF tokenıyla POST isteği gönderiyoruz.
         // THEN: HTTP durum kodunu ve JSON cevabını doğruluyoruz.
         mockMvc.perform(
                         post("/api/customers")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -97,6 +112,7 @@ class CustomerControllerTest {
         assertEquals("Erkoç", capturedRequest.getLastName());
         assertEquals("onur@example.com", capturedRequest.getEmail());
     }
+
     @Test
     void createCustomer_whenRequestIsInvalid_shouldReturnBadRequest()
             throws Exception {
@@ -110,9 +126,10 @@ class CustomerControllerTest {
             }
             """;
 
-        // WHEN: Geçersiz JSON ile müşteri oluşturma isteği gönderiyoruz.
+        // WHEN: CSRF geçerli; JSON validation açısından geçersiz.
         mockMvc.perform(
                         post("/api/customers")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -134,6 +151,7 @@ class CustomerControllerTest {
         verify(customerService, never())
                 .createCustomer(any(CustomerCreateRequest.class));
     }
+
     @Test
     void getCustomerById_whenCustomerExists_shouldReturnOk()
             throws Exception {
@@ -167,6 +185,7 @@ class CustomerControllerTest {
         // URL'den gelen id'nin servise doğru aktarıldığını kontrol ediyoruz.
         verify(customerService).getCustomerById(1L);
     }
+
     @Test
     void getCustomerById_whenCustomerDoesNotExist_shouldReturnNotFound()
             throws Exception {
@@ -194,6 +213,7 @@ class CustomerControllerTest {
 
         verify(customerService).getCustomerById(99L);
     }
+
     @Test
     void getAllCustomers_whenCustomersExist_shouldReturnOkWithCustomerList()
             throws Exception {
@@ -245,6 +265,7 @@ class CustomerControllerTest {
 
         verify(customerService).getAllCustomers();
     }
+
     @Test
     void getAllCustomers_whenNoCustomersExist_shouldReturnEmptyList()
             throws Exception {
@@ -268,16 +289,16 @@ class CustomerControllerTest {
 
         verify(customerService).getAllCustomers();
     }
+
     @Test
     void updateCustomer_whenRequestIsValid_shouldReturnOk()
             throws Exception {
 
-        // GIVEN: Service'in döndüreceği güncellenmiş müşteri.
         CustomerResponse response = new CustomerResponse(
                 1L,
                 "Onur Can",
                 "Erkoç",
-                "new@example.com"
+                "onur@example.com"
         );
 
         when(customerService.updateCustomer(
@@ -288,32 +309,32 @@ class CustomerControllerTest {
         String requestBody = """
             {
                 "firstName": "Onur Can",
-                "lastName": "Erkoç",
-                "email": "new@example.com"
+                "lastName": "Erkoç"
             }
             """;
 
-        // WHEN: Güncelleme isteğini gönderiyoruz.
         mockMvc.perform(
                         put("/api/customers/{id}", 1L)
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
-
-                // THEN: 200 OK ve güncellenmiş bilgiler dönmeli.
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_JSON
                 ))
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.firstName").value("Onur Can"))
-                .andExpect(jsonPath("$.lastName").value("Erkoç"))
+                .andExpect(jsonPath("$.firstName")
+                        .value("Onur Can"))
+                .andExpect(jsonPath("$.lastName")
+                        .value("Erkoç"))
                 .andExpect(jsonPath("$.email")
-                        .value("new@example.com"));
+                        .value("onur@example.com"));
 
-        // Service'e gönderilen DTO'yu yakalıyoruz.
         ArgumentCaptor<CustomerUpdateRequest> requestCaptor =
-                ArgumentCaptor.forClass(CustomerUpdateRequest.class);
+                ArgumentCaptor.forClass(
+                        CustomerUpdateRequest.class
+                );
 
         verify(customerService).updateCustomer(
                 eq(1L),
@@ -323,32 +344,33 @@ class CustomerControllerTest {
         CustomerUpdateRequest capturedRequest =
                 requestCaptor.getValue();
 
-        // URL'deki ID verify içinde, JSON alanları burada doğrulanıyor.
-        assertEquals("Onur Can", capturedRequest.getFirstName());
-        assertEquals("Erkoç", capturedRequest.getLastName());
-        assertEquals("new@example.com", capturedRequest.getEmail());
+        assertEquals(
+                "Onur Can",
+                capturedRequest.getFirstName()
+        );
+
+        assertEquals(
+                "Erkoç",
+                capturedRequest.getLastName()
+        );
     }
     @Test
     void updateCustomer_whenRequestIsInvalid_shouldReturnBadRequest()
             throws Exception {
 
-        // GIVEN: Ad ve soyad boş, e-posta formatı geçersiz.
         String requestBody = """
             {
                 "firstName": "",
-                "lastName": "",
-                "email": "gecersiz-email"
+                "lastName": ""
             }
             """;
 
-        // WHEN: Geçersiz güncelleme isteği gönderiyoruz.
         mockMvc.perform(
                         put("/api/customers/{id}", 1L)
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
-
-                // THEN: Validation hataları 400 olarak dönmeli.
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_JSON
@@ -356,80 +378,33 @@ class CustomerControllerTest {
                 .andExpect(jsonPath("$.firstName")
                         .value("Ad alanı zorunludur"))
                 .andExpect(jsonPath("$.lastName")
-                        .value("Soyadı alanı zorunludur"))
-                .andExpect(jsonPath("$.email")
-                        .value("Geçerli bir email adresi giriniz"));
+                        .value("Soyadı alanı zorunludur"));
 
-        // Validation başarısız olduğu için service'e ulaşılmamalı.
-        verify(customerService, never()).updateCustomer(
-                eq(1L),
-                any(CustomerUpdateRequest.class)
-        );
+        verify(customerService, never())
+                .updateCustomer(
+                        eq(1L),
+                        any(CustomerUpdateRequest.class)
+                );
     }
     @Test
-    void updateCustomer_whenEmailAlreadyExists_shouldReturnConflict()
+    void deleteCustomer_whenCustomerCanBeDeleted_shouldReturnNoContentAndLogout()
             throws Exception {
 
-        // GIVEN: Güncellemede kullanılmak istenen e-posta zaten mevcut.
-        when(customerService.updateCustomer(
-                eq(1L),
-                any(CustomerUpdateRequest.class)
-        )).thenThrow(
-                new EmailAlreadyExistsException(
-                        "Bu email adresi zaten kullanılıyor"
-                )
-        );
+        MockHttpSession session =
+                new MockHttpSession();
 
-        // JSON geçerli; hata validation'dan değil iş kuralından gelecek.
-        String requestBody = """
-            {
-                "firstName": "Onur",
-                "lastName": "Erkoç",
-                "email": "used@example.com"
-            }
-            """;
-
-        // WHEN: Güncelleme isteğini gönderiyoruz.
-        mockMvc.perform(
-                        put("/api/customers/{id}", 1L)
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
-                )
-
-                // THEN: GlobalExceptionHandler 409 dönmeli.
-                .andExpect(status().isConflict())
-                .andExpect(content().contentTypeCompatibleWith(
-                        MediaType.APPLICATION_JSON
-                ))
-                .andExpect(jsonPath("$.message")
-                        .value("Bu email adresi zaten kullanılıyor"));
-
-        verify(customerService).updateCustomer(
-                eq(1L),
-                any(CustomerUpdateRequest.class)
-        );
-    }
-    @Test
-    void deleteCustomer_whenCustomerCanBeDeleted_shouldReturnNoContent()
-            throws Exception {
-
-        // GIVEN:
-        // Mockito'da void metotlar varsayılan olarak hiçbir şey yapmaz.
-        // Bu nedenle başarılı silme için ayrıca when() yazmamız gerekmez.
-
-        // WHEN: ID'si 1 olan müşteriyi silme isteği gönderiyoruz.
         mockMvc.perform(
                         delete("/api/customers/{id}", 1L)
+                                .session(session)
+                                .with(csrf())
                 )
-
-                // THEN: Başarılı silme işleminde 204 dönmeli.
                 .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
+                .andExpect(unauthenticated());
 
-                // 204 cevabında response body bulunmamalı.
-                .andExpect(content().string(""));
-
-        // URL'deki ID'nin servise doğru aktarıldığını doğruluyoruz.
         verify(customerService).deleteCustomer(1L);
+
+        assertTrue(session.isInvalid());
     }
     @Test
     void deleteCustomer_whenCustomerHasVirtualCards_shouldReturnConflict()
@@ -447,6 +422,7 @@ class CustomerControllerTest {
         // WHEN: Müşteriyi silme isteği gönderiyoruz.
         mockMvc.perform(
                         delete("/api/customers/{id}", 1L)
+                                .with(csrf())
                 )
 
                 // THEN: GlobalExceptionHandler 409 Conflict dönmeli.
@@ -459,6 +435,7 @@ class CustomerControllerTest {
 
         verify(customerService).deleteCustomer(1L);
     }
+
     @Test
     void deleteCustomer_whenCustomerDoesNotExist_shouldReturnNotFound()
             throws Exception {
@@ -475,6 +452,7 @@ class CustomerControllerTest {
         // WHEN: Var olmayan müşteri için silme isteği gönderiyoruz.
         mockMvc.perform(
                         delete("/api/customers/{id}", 99L)
+                                .with(csrf())
                 )
 
                 // THEN: GlobalExceptionHandler 404 dönmeli.
@@ -487,6 +465,7 @@ class CustomerControllerTest {
 
         verify(customerService).deleteCustomer(99L);
     }
+
     @Test
     void createCustomer_whenEmailAlreadyExists_shouldReturnConflict()
             throws Exception {
@@ -512,6 +491,7 @@ class CustomerControllerTest {
         // WHEN: Müşteri oluşturma isteği gönderiyoruz.
         mockMvc.perform(
                         post("/api/customers")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -527,11 +507,11 @@ class CustomerControllerTest {
         verify(customerService)
                 .createCustomer(any(CustomerCreateRequest.class));
     }
+
     @Test
     void updateCustomer_whenCustomerDoesNotExist_shouldReturnNotFound()
             throws Exception {
 
-        // GIVEN: Service, ID'si 99 olan müşteriyi bulamıyor.
         when(customerService.updateCustomer(
                 eq(99L),
                 any(CustomerUpdateRequest.class)
@@ -541,23 +521,19 @@ class CustomerControllerTest {
                 )
         );
 
-        // JSON geçerli; hata validation nedeniyle oluşmayacak.
         String requestBody = """
             {
                 "firstName": "Onur",
-                "lastName": "Erkoç",
-                "email": "onur@example.com"
+                "lastName": "Erkoç"
             }
             """;
 
-        // WHEN: Var olmayan müşteriyi güncelleme isteği gönderiyoruz.
         mockMvc.perform(
                         put("/api/customers/{id}", 99L)
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
-
-                // THEN: GlobalExceptionHandler 404 dönmeli.
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(
                         MediaType.APPLICATION_JSON
@@ -569,5 +545,75 @@ class CustomerControllerTest {
                 eq(99L),
                 any(CustomerUpdateRequest.class)
         );
+    }
+    @Test
+    @WithAnonymousUser
+    void getCustomerById_whenUserIsNotAuthenticated_shouldReturnUnauthorized()
+            throws Exception {
+
+        // WHEN: Giriş yapmadan müşteri bilgilerini istiyoruz.
+        mockMvc.perform(
+                        get("/api/customers/{id}", 1L)
+                                .accept(MediaType.APPLICATION_JSON)
+                )
+
+                // THEN: İstek kimlik doğrulama katmanında reddedilmeli.
+                .andExpect(status().isUnauthorized());
+
+        // İstek controller metoduna ulaşmadığı için servis çağrılmamalı.
+        verifyNoInteractions(customerService);
+    }
+    @Test
+    void createCustomer_whenCsrfTokenIsMissing_shouldReturnForbidden()
+            throws Exception {
+
+        // GIVEN: JSON geçerli; kullanıcı sınıftaki @WithMockUser ile giriş yapmış.
+        String requestBody = """
+        {
+            "firstName": "Onur",
+            "lastName": "Erkoç",
+            "email": "onur@example.com"
+        }
+        """;
+
+        // WHEN: Bilerek .with(csrf()) eklemeden POST isteği gönderiyoruz.
+        mockMvc.perform(
+                        post("/api/customers")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+
+                // THEN: Eksik CSRF tokenı nedeniyle istek reddedilmeli.
+                .andExpect(status().isForbidden());
+
+        // Güvenlik isteği durdurduğu için servis hiç çağrılmamalı.
+        verifyNoInteractions(customerService);
+    }
+    @Test
+    void createCustomer_whenCsrfTokenIsInvalid_shouldReturnForbidden()
+            throws Exception {
+
+        // GIVEN: Kullanıcı giriş yapmış, müşteri bilgileri geçerli.
+        String requestBody = """
+        {
+            "firstName": "Onur",
+            "lastName": "Erkoç",
+            "email": "onur@example.com"
+        }
+        """;
+
+        // WHEN: İsteğe bilerek geçersiz bir CSRF tokenı ekliyoruz.
+        mockMvc.perform(
+                        post("/api/customers")
+                                .with(csrf().useInvalidToken())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+
+                // THEN: Geçersiz token nedeniyle istek reddedilmeli.
+                .andExpect(status().isForbidden());
+
+        // İstek güvenlik katmanında durmalı; servis çağrılmamalı.
+        verifyNoInteractions(customerService);
     }
 }

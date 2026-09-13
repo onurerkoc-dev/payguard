@@ -4,8 +4,12 @@ import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
 import dev.onurerkoc.payguard.dto.CustomerResponse;
 import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
 import dev.onurerkoc.payguard.service.CustomerService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,10 +17,15 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/customers")
 public class CustomerController {
+
     private final CustomerService customerService;
-    public CustomerController(CustomerService customerService) {
+
+    public CustomerController(
+            CustomerService customerService) {
+
         this.customerService = customerService;
     }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CustomerResponse createCustomer(
@@ -24,15 +33,20 @@ public class CustomerController {
 
         return customerService.createCustomer(request);
     }
+
     @GetMapping
     public List<CustomerResponse> getAllCustomers() {
+
         return customerService.getAllCustomers();
     }
 
     @GetMapping("/{id}")
-    public CustomerResponse getCustomerById(@PathVariable Long id) {
+    public CustomerResponse getCustomerById(
+            @PathVariable Long id) {
+
         return customerService.getCustomerById(id);
     }
+
     @PutMapping("/{id}")
     public CustomerResponse updateCustomer(
             @PathVariable Long id,
@@ -40,9 +54,28 @@ public class CustomerController {
 
         return customerService.updateCustomer(id, request);
     }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteCustomer(@PathVariable Long id) {
+    public void deleteCustomer(
+            @PathVariable Long id,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Authentication authentication) {
+
         customerService.deleteCustomer(id);
+
+        /*
+         * Veritabanındaki hesap silindikten sonra mevcut
+         * HTTP session ve SecurityContext de kapatılır.
+         */
+        SecurityContextLogoutHandler logoutHandler =
+                new SecurityContextLogoutHandler();
+
+        logoutHandler.logout(
+                request,
+                response,
+                authentication
+        );
     }
 }
