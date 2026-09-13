@@ -15,7 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
-
+import org.springframework.dao.DataIntegrityViolationException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -69,14 +69,14 @@ class UserRegistrationServiceTest {
                 .thenReturn(passwordHash);
 
         // Gerçek veritabanı ID üretmediği için bu davranışı taklit ediyoruz.
-        when(customerRepository.save(any(Customer.class)))
+        when(customerRepository.saveAndFlush(any(Customer.class)))
                 .thenAnswer(invocation -> {
                     Customer customer = invocation.getArgument(0);
                     ReflectionTestUtils.setField(customer, "id", 7L);
                     return customer;
                 });
 
-        when(userAccountRepository.save(any(UserAccount.class)))
+        when(userAccountRepository.saveAndFlush(any(UserAccount.class)))
                 .thenAnswer(invocation -> {
                     UserAccount account = invocation.getArgument(0);
                     ReflectionTestUtils.setField(account, "id", 3L);
@@ -96,7 +96,8 @@ class UserRegistrationServiceTest {
         ArgumentCaptor<Customer> customerCaptor =
                 ArgumentCaptor.forClass(Customer.class);
 
-        verify(customerRepository).save(customerCaptor.capture());
+        verify(customerRepository)
+                .saveAndFlush(customerCaptor.capture());
 
         Customer savedCustomer = customerCaptor.getValue();
 
@@ -108,7 +109,7 @@ class UserRegistrationServiceTest {
         ArgumentCaptor<UserAccount> accountCaptor =
                 ArgumentCaptor.forClass(UserAccount.class);
 
-        verify(userAccountRepository).save(accountCaptor.capture());
+        verify(userAccountRepository).saveAndFlush(accountCaptor.capture());
 
         UserAccount savedAccount = accountCaptor.getValue();
 
@@ -149,7 +150,7 @@ class UserRegistrationServiceTest {
 
         // Yeni hesap kaydı oluşturulmamalı.
         verify(userAccountRepository, never())
-                .save(any(UserAccount.class));
+                .saveAndFlush(any(UserAccount.class));
 
         // Müşteri tarafına ve şifreleme işlemine hiç geçilmemeli.
         verifyNoInteractions(customerRepository, passwordEncoder);
@@ -183,10 +184,10 @@ class UserRegistrationServiceTest {
 
         // İki repository'ye de yeni kayıt gönderilmemeli.
         verify(customerRepository, never())
-                .save(any(Customer.class));
+                .saveAndFlush(any(Customer.class));
 
         verify(userAccountRepository, never())
-                .save(any(UserAccount.class));
+                .saveAndFlush(any(UserAccount.class));
 
         // Kayıt reddedildiği için şifre hashleme işlemine geçilmemeli.
         verifyNoInteractions(passwordEncoder);
@@ -224,10 +225,10 @@ class UserRegistrationServiceTest {
 
         // Müşteri veya hesap kaydı oluşturulmamalı.
         verify(customerRepository, never())
-                .save(any(Customer.class));
+                .saveAndFlush(any(Customer.class));
 
         verify(userAccountRepository, never())
-                .save(any(UserAccount.class));
+                .saveAndFlush(any(UserAccount.class));
     }
     @Test
     void register_whenPasswordIsExactly72Utf8Bytes_shouldAcceptRegistration() {
@@ -252,14 +253,14 @@ class UserRegistrationServiceTest {
                 .thenReturn(passwordHash);
 
         // Veritabanının ID üretmesini taklit ediyoruz.
-        when(customerRepository.save(any(Customer.class)))
+        when(customerRepository.saveAndFlush(any(Customer.class)))
                 .thenAnswer(invocation -> {
                     Customer customer = invocation.getArgument(0);
                     ReflectionTestUtils.setField(customer, "id", 7L);
                     return customer;
                 });
 
-        when(userAccountRepository.save(any(UserAccount.class)))
+        when(userAccountRepository.saveAndFlush(any(UserAccount.class)))
                 .thenAnswer(invocation -> {
                     UserAccount account = invocation.getArgument(0);
                     ReflectionTestUtils.setField(account, "id", 3L);
@@ -280,7 +281,8 @@ class UserRegistrationServiceTest {
         ArgumentCaptor<UserAccount> accountCaptor =
                 ArgumentCaptor.forClass(UserAccount.class);
 
-        verify(userAccountRepository).save(accountCaptor.capture());
+        verify(userAccountRepository)
+                .saveAndFlush(accountCaptor.capture());
 
         // Hesapta açık şifre değil, encoder'ın ürettiği hash bulunmalı.
         assertEquals(
@@ -288,4 +290,61 @@ class UserRegistrationServiceTest {
                 accountCaptor.getValue().getPasswordHash()
         );
     }
+    @Test
+    void register_whenConcurrentRequestCausesDuplicateEmail_shouldTranslateException() {
+
+        UserRegistrationRequest request =
+                new UserRegistrationRequest();
+
+        request.setFirstName("Onur");
+        request.setLastName("Erkoç");
+        request.setEmail("ONUR@EXAMPLE.COM");
+        request.setPassword("GuvenliSifre123!");
+
+        String normalizedEmail =
+                "onur@example.com";
+
+        when(userAccountRepository.existsByEmail(normalizedEmail))
+                .thenReturn(false);
+
+        when(customerRepository.existsByEmail(normalizedEmail))
+                .thenReturn(false);
+
+        when(passwordEncoder.encode("GuvenliSifre123!"))
+                .thenReturn("test-password-hash");
+
+        /*
+         * Ön kontrol bittikten hemen sonra başka bir istek
+         * aynı e-postayı kaydetmiş gibi davranıyoruz.
+         */
+        when(customerRepository.saveAndFlush(
+                any(Customer.class)
+        )).thenThrow(
+                new DataIntegrityViolationException(
+                        "Duplicate email"
+                )
+        );
+
+        EmailAlreadyExistsException exception =
+                assertThrows(
+                        EmailAlreadyExistsException.class,
+                        () -> userRegistrationService.register(request)
+                );
+
+        assertEquals(
+                "Bu email adresi zaten kullanılıyor",
+                exception.getMessage()
+        );
+
+        verify(customerRepository)
+                .saveAndFlush(any(Customer.class));
+
+        /*
+         * Customer kaydı başarısız olduğundan UserAccount
+         * kaydetme aşamasına geçilmemeli.
+         */
+        verify(userAccountRepository, never())
+                .saveAndFlush(any(UserAccount.class));
+    }
+
 }

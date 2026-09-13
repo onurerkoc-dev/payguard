@@ -22,7 +22,7 @@ import java.util.Optional;
 import org.springframework.security.access.AccessDeniedException;
 import dev.onurerkoc.payguard.entity.UserRole;
 import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
-
+import dev.onurerkoc.payguard.repository.UserAccountRepository;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import java.util.List;
@@ -42,6 +42,9 @@ class CustomerServiceAuthorizationTest {
 
     @MockitoBean
     private CustomerRepository customerRepository;
+
+    @MockitoBean
+    private UserAccountRepository userAccountRepository;
 
     @MockitoBean
     private VirtualCardRepository virtualCardRepository;

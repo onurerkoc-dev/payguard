@@ -1,66 +1,75 @@
 package dev.onurerkoc.payguard.service;
 
-import org.springframework.security.access.prepost.PreAuthorize;
 import dev.onurerkoc.payguard.dto.CustomerCreateRequest;
 import dev.onurerkoc.payguard.dto.CustomerResponse;
 import dev.onurerkoc.payguard.dto.CustomerUpdateRequest;
+import dev.onurerkoc.payguard.entity.Customer;
 import dev.onurerkoc.payguard.exception.CustomerHasVirtualCardsException;
 import dev.onurerkoc.payguard.exception.CustomerNotFoundException;
 import dev.onurerkoc.payguard.exception.EmailAlreadyExistsException;
 import dev.onurerkoc.payguard.repository.CustomerRepository;
+import dev.onurerkoc.payguard.repository.UserAccountRepository;
 import dev.onurerkoc.payguard.repository.VirtualCardRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
-import dev.onurerkoc.payguard.entity.Customer;
+
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class CustomerService {
+
     private final CustomerRepository customerRepository;
     private final VirtualCardRepository virtualCardRepository;
+    private final UserAccountRepository userAccountRepository;
+
     public CustomerService(
             CustomerRepository customerRepository,
-            VirtualCardRepository virtualCardRepository) {
+            VirtualCardRepository virtualCardRepository,
+            UserAccountRepository userAccountRepository) {
 
         this.customerRepository = customerRepository;
         this.virtualCardRepository = virtualCardRepository;
+        this.userAccountRepository = userAccountRepository;
     }
+
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
-    public CustomerResponse createCustomer(CustomerCreateRequest request) {
+    public CustomerResponse createCustomer(
+            CustomerCreateRequest request) {
 
         if (customerRepository.existsByEmail(request.getEmail())) {
             throw new EmailAlreadyExistsException(
                     "Bu email adresi zaten kullanılıyor"
             );
         }
+
         Customer customer = new Customer(
                 request.getFirstName(),
                 request.getLastName(),
                 request.getEmail()
         );
-        Customer savedCustomer = customerRepository.save(customer);
-        return new CustomerResponse(
-                savedCustomer.getId(),
-                savedCustomer.getFirstName(),
-                savedCustomer.getLastName(),
-                savedCustomer.getEmail()
-        );
+
+        Customer savedCustomer =
+                customerRepository.save(customer);
+
+        return mapToResponse(savedCustomer);
     }
+
     @PreAuthorize("hasRole('ADMIN')")
     public List<CustomerResponse> getAllCustomers() {
-        List<Customer> customers = customerRepository.findAll();
-        List<CustomerResponse> responses = new ArrayList<>();
+
+        List<Customer> customers =
+                customerRepository.findAll();
+
+        List<CustomerResponse> responses =
+                new ArrayList<>();
+
         for (Customer customer : customers) {
-            CustomerResponse response = new CustomerResponse(
-                    customer.getId(),
-                    customer.getFirstName(),
-                    customer.getLastName(),
-                    customer.getEmail()
-            );
-            responses.add(response);
+            responses.add(mapToResponse(customer));
         }
+
         return responses;
     }
 
@@ -69,18 +78,11 @@ public class CustomerService {
     )
     public CustomerResponse getCustomerById(Long id) {
 
-        Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new CustomerNotFoundException(
-                        "Müşteri bulunamadı: " + id
-                ));
+        Customer customer = findCustomerById(id);
 
-        return new CustomerResponse(
-                customer.getId(),
-                customer.getFirstName(),
-                customer.getLastName(),
-                customer.getEmail()
-        );
+        return mapToResponse(customer);
     }
+
     @PreAuthorize(
             "@customerAccessPolicy.isOwner(authentication, #id)"
     )
@@ -89,47 +91,69 @@ public class CustomerService {
             Long id,
             CustomerUpdateRequest request) {
 
-        Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new CustomerNotFoundException(
-                        "Müşteri bulunamadı: " + id
-                ));
+        Customer customer = findCustomerById(id);
 
-        boolean emailChanged = !customer.getEmail().equals(request.getEmail());
+        customer.setFirstName(request.getFirstName().trim());
+        customer.setLastName(request.getLastName().trim());
 
-        if (emailChanged && customerRepository.existsByEmail(request.getEmail())) {
-            throw new EmailAlreadyExistsException(
-                    "Bu email adresi zaten kullanılıyor"
-            );
-        }
+        /*
+         * E-posta burada değiştirilmez.
+         * Customer.email ve UserAccount.email aynı kalmalıdır.
+         */
+        Customer updatedCustomer =
+                customerRepository.save(customer);
 
-        customer.setFirstName(request.getFirstName());
-        customer.setLastName(request.getLastName());
-        customer.setEmail(request.getEmail());
-
-        Customer updatedCustomer = customerRepository.save(customer);
-
-        return new CustomerResponse(
-                updatedCustomer.getId(),
-                updatedCustomer.getFirstName(),
-                updatedCustomer.getLastName(),
-                updatedCustomer.getEmail()
-        );
+        return mapToResponse(updatedCustomer);
     }
+
     @PreAuthorize(
             "@customerAccessPolicy.isOwner(authentication, #id)"
     )
     @Transactional
     public void deleteCustomer(Long id) {
 
-        Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new CustomerNotFoundException(
-                        "Müşteri bulunamadı: " + id
-                ));
+        Customer customer = findCustomerById(id);
+
         if (virtualCardRepository.existsByCustomerId(id)) {
             throw new CustomerHasVirtualCardsException(
                     "Sanal kartı bulunan müşteri silinemez"
             );
         }
+
+        /*
+         * user_accounts.customer_id, customers.id alanına bağlıdır.
+         * Bu yüzden önce giriş hesabını silip veritabanına uygularız.
+         */
+        userAccountRepository.findByCustomerId(id)
+                .ifPresent(account -> {
+
+                    // Önce kullanıcı hesabını sil.
+                    userAccountRepository.delete(account);
+
+                    // Silme SQL'ini Customer silinmeden önce çalıştır.
+                    userAccountRepository.flush();
+                });
+
         customerRepository.delete(customer);
+    }
+
+    private Customer findCustomerById(Long id) {
+
+        return customerRepository.findById(id)
+                .orElseThrow(() ->
+                        new CustomerNotFoundException(
+                                "Müşteri bulunamadı: " + id
+                        )
+                );
+    }
+
+    private CustomerResponse mapToResponse(Customer customer) {
+
+        return new CustomerResponse(
+                customer.getId(),
+                customer.getFirstName(),
+                customer.getLastName(),
+                customer.getEmail()
+        );
     }
 }

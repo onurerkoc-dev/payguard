@@ -8,9 +8,9 @@ import java.util.Optional;
 public interface UserAccountRepository
         extends JpaRepository<UserAccount, Long> {
 
-    // Giriş e-postasına ait hesabı bulur.
     Optional<UserAccount> findByEmail(String email);
 
-    // Kayıt sırasında e-postanın kullanımda olup olmadığını kontrol eder.
+    Optional<UserAccount> findByCustomerId(Long customerId);
+
     boolean existsByEmail(String email);
 }

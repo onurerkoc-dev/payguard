@@ -14,7 +14,9 @@ import dev.onurerkoc.payguard.dto.CustomerResponse;
 import dev.onurerkoc.payguard.entity.Customer;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
-
+import dev.onurerkoc.payguard.entity.UserAccount;
+import dev.onurerkoc.payguard.repository.UserAccountRepository;
+import org.mockito.InOrder;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -34,6 +36,9 @@ class CustomerServiceTest {
 
     @Mock
     private VirtualCardRepository virtualCardRepository;
+
+    @Mock
+    private UserAccountRepository userAccountRepository;
 
     @InjectMocks
     private CustomerService customerService;
@@ -173,103 +178,51 @@ class CustomerServiceTest {
         verify(customerRepository).findById(99L);
     }
     @Test
-    void updateCustomer_whenRequestIsValid_shouldUpdateAndReturnResponse() {
+    void updateCustomer_whenRequestIsValid_shouldUpdateNamesAndKeepEmail() {
 
-        // GIVEN: Veritabanında bulunan mevcut müşteriyi hazırlıyoruz.
+        // GIVEN: Sistemde kayıtlı müşteri.
         Customer customer = new Customer(
                 "Onur",
                 "Erkoç",
-                "old@example.com"
+                "onur@example.com"
         );
 
         ReflectionTestUtils.setField(customer, "id", 1L);
 
-        // API'den gelecek güncelleme isteğini hazırlıyoruz.
-        CustomerUpdateRequest request = new CustomerUpdateRequest();
-        request.setFirstName("Onur Can");
-        request.setLastName("Erkoç");
-        request.setEmail("new@example.com");
+        CustomerUpdateRequest request =
+                new CustomerUpdateRequest();
 
-        // ID'si 1 olan müşteri bulundu.
+        request.setFirstName(" Onur Can ");
+        request.setLastName(" Erkoç ");
+
         when(customerRepository.findById(1L))
                 .thenReturn(Optional.of(customer));
 
-        // Yeni e-posta başka bir müşteri tarafından kullanılmıyor.
-        when(customerRepository.existsByEmail("new@example.com"))
-                .thenReturn(false);
-
-        // save() metoduna verilen güncellenmiş müşteriyi geri döndürüyoruz.
         when(customerRepository.save(any(Customer.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation ->
+                        invocation.getArgument(0));
 
-        // WHEN: Müşteriyi güncelliyoruz.
+        // WHEN
         CustomerResponse response =
                 customerService.updateCustomer(1L, request);
 
-        // THEN: Dönen response'un güncel bilgiler taşıdığını kontrol ediyoruz.
-        assertEquals(1L, response.getId());
+        // THEN: Ad ve soyadı güncellenmeli.
         assertEquals("Onur Can", response.getFirstName());
         assertEquals("Erkoç", response.getLastName());
-        assertEquals("new@example.com", response.getEmail());
 
-        // Entity'nin içindeki değerlerin de gerçekten değiştiğini doğruluyoruz.
-        assertEquals("Onur Can", customer.getFirstName());
-        assertEquals("Erkoç", customer.getLastName());
-        assertEquals("new@example.com", customer.getEmail());
-
-        verify(customerRepository).findById(1L);
-        verify(customerRepository).existsByEmail("new@example.com");
-        verify(customerRepository).save(customer);
-    }
-    @Test
-    void updateCustomer_whenNewEmailAlreadyExists_shouldThrowException() {
-
-        // GIVEN: Mevcut müşteriyi hazırlıyoruz.
-        Customer customer = new Customer(
-                "Onur",
-                "Erkoç",
-                "old@example.com"
-        );
-
-        ReflectionTestUtils.setField(customer, "id", 1L);
-
-        // Başka bir müşterinin kullandığı e-postaya geçilmeye çalışılıyor.
-        CustomerUpdateRequest request = new CustomerUpdateRequest();
-        request.setFirstName("Onur Can");
-        request.setLastName("Erkoç");
-        request.setEmail("used@example.com");
-
-        when(customerRepository.findById(1L))
-                .thenReturn(Optional.of(customer));
-
-        // Yeni e-posta zaten kullanılıyor.
-        when(customerRepository.existsByEmail("used@example.com"))
-                .thenReturn(true);
-
-        // WHEN: Güncelleme sırasında exception bekliyoruz.
-        EmailAlreadyExistsException exception =
-                assertThrows(
-                        EmailAlreadyExistsException.class,
-                        () -> customerService.updateCustomer(1L, request)
-                );
-
-        // THEN: Doğru hata mesajının döndüğünü kontrol ediyoruz.
+        // E-posta bu işlem tarafından değiştirilmemeli.
         assertEquals(
-                "Bu email adresi zaten kullanılıyor",
-                exception.getMessage()
+                "onur@example.com",
+                response.getEmail()
         );
 
-        // Hata, setter'lardan önce oluştuğu için eski bilgiler korunmalı.
-        assertEquals("Onur", customer.getFirstName());
-        assertEquals("Erkoç", customer.getLastName());
-        assertEquals("old@example.com", customer.getEmail());
+        assertEquals(
+                "onur@example.com",
+                customer.getEmail()
+        );
 
         verify(customerRepository).findById(1L);
-        verify(customerRepository).existsByEmail("used@example.com");
-
-        // Geçersiz güncelleme veritabanına gönderilmemeli.
-        verify(customerRepository, never())
-                .save(any(Customer.class));
+        verify(customerRepository).save(customer);
     }
     @Test
     void deleteCustomer_whenCustomerHasVirtualCards_shouldThrowException() {
@@ -310,9 +263,8 @@ class CustomerServiceTest {
         verify(customerRepository, never()).delete(customer);
     }
     @Test
-    void deleteCustomer_whenCustomerHasNoVirtualCards_shouldDeleteCustomer() {
+    void deleteCustomer_whenCustomerHasAccountAndNoCards_shouldDeleteBoth() {
 
-        // GIVEN: Veritabanında bulunan müşteriyi hazırlıyoruz.
         Customer customer = new Customer(
                 "Onur",
                 "Erkoç",
@@ -321,20 +273,47 @@ class CustomerServiceTest {
 
         ReflectionTestUtils.setField(customer, "id", 1L);
 
+        UserAccount account = new UserAccount(
+                "onur@example.com",
+                "test-password-hash",
+                customer
+        );
+
+        ReflectionTestUtils.setField(account, "id", 10L);
+
         when(customerRepository.findById(1L))
                 .thenReturn(Optional.of(customer));
 
-        // Müşterinin bağlı bir sanal kartı bulunmuyor.
         when(virtualCardRepository.existsByCustomerId(1L))
                 .thenReturn(false);
 
-        // WHEN: Silme metodunu çalıştırıyoruz.
+        when(userAccountRepository.findByCustomerId(1L))
+                .thenReturn(Optional.of(account));
+
+        // WHEN
         customerService.deleteCustomer(1L);
 
-        // THEN: Gerekli kontrollerin ve silme işleminin yapıldığını doğruluyoruz.
+        // THEN
         verify(customerRepository).findById(1L);
         verify(virtualCardRepository).existsByCustomerId(1L);
-        verify(customerRepository).delete(customer);
+        verify(userAccountRepository).findByCustomerId(1L);
+
+        /*
+         * Önce UserAccount, ardından Customer silinmelidir.
+         */
+        InOrder deletionOrder = inOrder(
+                userAccountRepository,
+                customerRepository
+        );
+
+        deletionOrder.verify(userAccountRepository)
+                .delete(account);
+
+        deletionOrder.verify(userAccountRepository)
+                .flush();
+
+        deletionOrder.verify(customerRepository)
+                .delete(customer);
     }
     @Test
     void getAllCustomers_whenCustomersExist_shouldReturnResponseList() {
@@ -396,34 +375,30 @@ class CustomerServiceTest {
     @Test
     void updateCustomer_whenCustomerDoesNotExist_shouldThrowException() {
 
-        // GIVEN: Güncelleme isteğini hazırlıyoruz.
-        CustomerUpdateRequest request = new CustomerUpdateRequest();
+        CustomerUpdateRequest request =
+                new CustomerUpdateRequest();
+
         request.setFirstName("Onur");
         request.setLastName("Erkoç");
-        request.setEmail("new@example.com");
 
-        // ID'si 99 olan müşteri bulunmuyor.
         when(customerRepository.findById(99L))
                 .thenReturn(Optional.empty());
 
-        // WHEN: Güncelleme yapılmak istendiğinde exception bekliyoruz.
         CustomerNotFoundException exception =
                 assertThrows(
                         CustomerNotFoundException.class,
-                        () -> customerService.updateCustomer(99L, request)
+                        () -> customerService.updateCustomer(
+                                99L,
+                                request
+                        )
                 );
 
-        // THEN: Doğru hata mesajının oluştuğunu kontrol ediyoruz.
         assertEquals(
                 "Müşteri bulunamadı: 99",
                 exception.getMessage()
         );
 
         verify(customerRepository).findById(99L);
-
-        // Müşteri bulunamadığı için sonraki adımlara geçilmemeli.
-        verify(customerRepository, never())
-                .existsByEmail(anyString());
 
         verify(customerRepository, never())
                 .save(any(Customer.class));
@@ -450,49 +425,48 @@ class CustomerServiceTest {
 
         verify(customerRepository).findById(99L);
 
-        // Müşteri bulunamadığı için kart repository'si hiç kullanılmamalı.
-        verifyNoInteractions(virtualCardRepository);
+
+        verifyNoInteractions(
+                virtualCardRepository,
+                userAccountRepository
+        );
 
         // Silme işlemi kesinlikle yapılmamalı.
         verify(customerRepository, never())
                 .delete(any(Customer.class));
     }
     @Test
-    void updateCustomer_whenEmailDoesNotChange_shouldUpdateWithoutCheckingEmail() {
+    void deleteCustomer_whenCustomerHasNoAccount_shouldDeleteCustomer() {
 
-        // GIVEN: Mevcut müşteri ve aynı e-postayı taşıyan güncelleme isteği.
         Customer customer = new Customer(
-                "Onur",
-                "Erkoç",
-                "onur@example.com"
+                "Ayşe",
+                "Yılmaz",
+                "ayse@example.com"
         );
 
-        ReflectionTestUtils.setField(customer, "id", 1L);
+        ReflectionTestUtils.setField(customer, "id", 2L);
 
-        CustomerUpdateRequest request = new CustomerUpdateRequest();
-        request.setFirstName("Onur Can");
-        request.setLastName("Erkoç");
-        request.setEmail("onur@example.com");
-
-        when(customerRepository.findById(1L))
+        when(customerRepository.findById(2L))
                 .thenReturn(Optional.of(customer));
 
-        when(customerRepository.save(any(Customer.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(virtualCardRepository.existsByCustomerId(2L))
+                .thenReturn(false);
 
-        // WHEN
-        CustomerResponse response =
-                customerService.updateCustomer(1L, request);
+        // Admin tarafından oluşturulmuş hesapsız müşteri olabilir.
+        when(userAccountRepository.findByCustomerId(2L))
+                .thenReturn(Optional.empty());
 
-        // THEN
-        assertEquals(1L, response.getId());
-        assertEquals("Onur Can", response.getFirstName());
-        assertEquals("onur@example.com", response.getEmail());
+        customerService.deleteCustomer(2L);
 
-        // E-posta değişmediği için benzersizlik sorgusu gereksizdir.
-        verify(customerRepository, never())
-                .existsByEmail(anyString());
+        verify(userAccountRepository)
+                .findByCustomerId(2L);
 
-        verify(customerRepository).save(customer);
+        verify(userAccountRepository, never())
+                .delete(any(UserAccount.class));
+
+        verify(userAccountRepository, never())
+                .flush();
+
+        verify(customerRepository).delete(customer);
     }
 }
