@@ -65,7 +65,7 @@ PayGuard, sorumlulukları birbirinden ayıran katmanlı bir mimari kullanır.
 
 ```mermaid
 flowchart TD
-    Client["İstemci / Gelecekte React UI"] --> Security["Spring Security Filter Chain"]
+    Client["İstemci / Spring MVC + Thymeleaf UI"] --> Security["Spring Security Filter Chain"]
     Security --> Controller["Controller + DTO Validation"]
     Controller --> Service["Service + İş Kuralları"]
     Service --> Policy["Yetkilendirme Politikaları"]
