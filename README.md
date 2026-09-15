@@ -249,11 +249,13 @@ Content-Type: application/json
 | Web | Spring Web MVC |
 | Güvenlik | Spring Security, session authentication, BCrypt, CSRF |
 | Persistence | Spring Data JPA, Hibernate |
+| Veritabanı migration | Flyway |
 | Veritabanı | MySQL |
 | Doğrulama | Jakarta Validation |
 | Test | JUnit 5, Mockito, MockMvc, Spring Security Test |
 | Entegrasyon testi | Testcontainers + MySQL 8.4 |
 | Build | Maven Wrapper |
+| CI | GitHub Actions |
 
 ## Projeyi çalıştırma
 
@@ -308,7 +310,30 @@ $env:PAYGUARD_DB_PASSWORD="guvenli-bir-sifre"
 
 Şifreyi `application.properties` veya Git geçmişine eklemeyin.
 
-### 4. Uygulamayı başlatın
+### 4. Veritabanı migration'ları
+
+Uygulama başlatıldığında Flyway, `src/main/resources/db/migration`
+altındaki migration dosyalarını sürüm sırasına göre otomatik olarak çalıştırır:
+
+```text
+V1__initial_schema.sql
+V2__add_payment_transaction_details.sql
+V3__create_user_accounts.sql
+```
+
+- `V1`, temel müşteri, sanal kart ve işlem tablolarını oluşturur.
+- `V2`, ödeme işleminin internet, yurt dışı ve işlem sonrası bakiye bilgilerini ekler.
+- `V3`, Spring Security kullanıcı hesapları tablosunu oluşturur.
+- Uygulanan migration'lar `flyway_schema_history` tablosunda kayıt altında tutulur.
+
+Tabloları elle oluşturmak gerekmez. Hibernate şemayı değiştirmez;
+`spring.jpa.hibernate.ddl-auto=validate` ayarıyla entity ve tablo yapılarının
+uyumlu olduğunu doğrular.
+
+Varsayılan yapılandırmada `baseline-on-migrate` açık değildir. Böylece Flyway
+geçmişi bulunmayan dolu bir veritabanının yanlışlıkla sahiplenilmesi engellenir.
+
+### 5. Uygulamayı başlatın
 
 Windows:
 
@@ -357,7 +382,14 @@ macOS/Linux:
 ./mvnw clean test
 ```
 
-Testcontainers, entegrasyon testleri sırasında geçici bir `mysql:8.4` container'ı başlatır ve test sonunda yönetir. Image daha önce indirildiyse Docker tekrar indirme yapmayabilir; testin kısa sürmesi normaldir.
+Testcontainers, entegrasyon testleri sırasında ihtiyaç duyulan izole
+`mysql:8.4` container'larını otomatik olarak başlatır. Tam test paketi
+çalışırken Docker Desktop'ta rastgele isim ve portlara sahip birden fazla
+geçici MySQL container'ı görülebilir; bu normaldir.
+
+`Ryuk` isimli yardımcı container, testler tamamlandığında geçici kaynakların
+temizlenmesini yönetir. MySQL image'ı daha önce indirildiyse Docker aynı
+image'ı yeniden indirmez.
 
 Beklenen güncel sonuç:
 
@@ -381,6 +413,7 @@ src
 │   │   ├── security     # UserDetails ve sahiplik politikası
 │   │   └── service      # İş kuralları ve transaction sınırları
 │   └── resources
+│       ├── db/migration # Flyway sürümlü veritabanı migration'ları
 │       └── application.properties
 └── test
     └── java/dev/onurerkoc/payguard
@@ -410,6 +443,17 @@ Aynı kart bakiyesini iki transaction eş zamanlı değiştirebilir. `@Version`,
 
 Repository davranışları yalnızca mock veya H2 ile değil, üretimde kullanılan veritabanı ailesiyle doğrulanır. Testcontainers her test çalıştırmasında izole ve tekrarlanabilir bir MySQL ortamı sağlar.
 
+### Neden Flyway?
+
+Hibernate'in şemayı otomatik olarak güncellemesi yerine bütün veritabanı
+değişiklikleri sürümlü SQL dosyalarıyla yönetilir. Böylece şemanın hangi
+değişikliklerden geçtiği Git geçmişinden ve `flyway_schema_history`
+tablosundan izlenebilir.
+
+Yeni bir ortam V1'den başlayarak aynı migration sırasını çalıştırır.
+Uygulanmış migration dosyaları değiştirilmez; sonraki değişiklikler V4,
+V5 ve devam eden sürümler olarak eklenir.
+
 ### Neden DTO kullanılıyor?
 
 Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebileceği alanları sınırlar, validation kurallarını taşır ve persistence modelinin dışarı sızmasını engeller.
@@ -422,12 +466,12 @@ Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebile
 - [x] Birim, web, güvenlik ve MySQL entegrasyon testleri
 - [x] Session tabanlı Spring Security temeli
 - [x] Rol ve müşteri sahipliği yetkilendirmesi
-- [ ] GitHub Actions ile otomatik test
-- [ ] Flyway ile sürümlü veritabanı migration'ları
+- [x] GitHub Actions ile otomatik test
+- [x] Flyway ile sürümlü veritabanı migration'ları
 - [ ] Local, test ve production profillerini ayırma
 - [ ] OpenAPI/Swagger dokümantasyonu
 - [ ] Güvenli admin hesabı oluşturma akışı
-- [ ] React tabanlı sade kullanıcı paneli
+- [ ] Spring MVC, Thymeleaf ve Bootstrap ile sade kullanıcı paneli
 - [ ] Docker ile uygulama paketleme
 
 ## Proje durumu
