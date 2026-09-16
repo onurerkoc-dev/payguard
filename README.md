@@ -6,6 +6,7 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![Tests](https://img.shields.io/badge/tests-144%20passing-brightgreen)](#test-stratejisi)
+[![CI](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml/badge.svg)](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml)
 [![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 
 PayGuard; müşteri hesaplarını, sanal kartları ve kart işlemlerini yöneten; ödeme taleplerini kart durumu, bakiye ve kullanım limitlerine göre değerlendiren bir backend projesidir.
@@ -21,11 +22,14 @@ Projenin odağı yalnızca CRUD endpointleri oluşturmak değildir. Aynı ödeme
 - [Güvenlik modeli](#güvenlik-modeli)
 - [API endpointleri](#api-endpointleri)
 - [Teknoloji yığını](#teknoloji-yığını)
+- [Ortam profilleri](#ortam-profilleri)
 - [Projeyi çalıştırma](#projeyi-çalıştırma)
 - [Test stratejisi](#test-stratejisi)
 - [Proje yapısı](#proje-yapısı)
 - [Tasarım kararları](#tasarım-kararları)
 - [Yol haritası](#yol-haritası)
+- [Proje durumu](#proje-durumu)
+- [Geliştirici](#geliştirici)
 
 ## Öne çıkan özellikler
 
@@ -65,7 +69,7 @@ PayGuard, sorumlulukları birbirinden ayıran katmanlı bir mimari kullanır.
 
 ```mermaid
 flowchart TD
-    Client["İstemci / Gelecekte React UI"] --> Security["Spring Security Filter Chain"]
+    Client["REST istemcisi / Postman"] --> Security["Spring Security Filter Chain"]
     Security --> Controller["Controller + DTO Validation"]
     Controller --> Service["Service + İş Kuralları"]
     Service --> Policy["Yetkilendirme Politikaları"]
@@ -246,14 +250,59 @@ Content-Type: application/json
 |---|---|
 | Dil | Java 21 |
 | Framework | Spring Boot 4.1.1 |
-| Web | Spring Web MVC |
+| Web | Spring Web MVC (REST) |
 | Güvenlik | Spring Security, session authentication, BCrypt, CSRF |
 | Persistence | Spring Data JPA, Hibernate |
+| Veritabanı migration | Flyway |
 | Veritabanı | MySQL |
 | Doğrulama | Jakarta Validation |
 | Test | JUnit 5, Mockito, MockMvc, Spring Security Test |
 | Entegrasyon testi | Testcontainers + MySQL 8.4 |
+| Yapılandırma | Spring Profiles (`local`, `test`, `prod`) |
 | Build | Maven Wrapper |
+| CI | GitHub Actions |
+
+## Ortam profilleri
+
+PayGuard, aynı uygulama kodunu farklı ortamlarda güvenli biçimde çalıştırmak
+için Spring Profiles kullanır. Ortak ayarlar `application.properties`
+dosyasında tutulur; veritabanı bağlantısı gibi ortama göre değişen değerler
+ilgili profil dosyasından alınır.
+
+```mermaid
+flowchart TD
+    Common["Ortak ayarlar"] --> Local["local: Yerel MySQL"]
+    Common --> Test["test: Testcontainers MySQL"]
+    Common --> Prod["prod: Sunucu değişkenleri"]
+```
+
+| Profil | Yapılandırma kaynağı | Kullanım amacı |
+|---|---|---|
+| `local` | `application-local.properties` | Geliştiricinin bilgisayarındaki MySQL veritabanı |
+| `test` | `src/test/resources/application-test.properties` ve `@ServiceConnection` | Docker üzerinde geçici ve izole Testcontainers MySQL |
+| `prod` | `application-prod.properties` ve environment variable'lar | Sunucu veya hosting ortamındaki production veritabanı |
+
+Ortak yapılandırmada Hibernate yalnızca Flyway tarafından oluşturulan şemayı
+doğrular:
+
+```properties
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.open-in-view=false
+```
+
+Production profili bağlantı bilgilerini kaynak koddan değil aşağıdaki
+environment variable'lardan bekler:
+
+```text
+PAYGUARD_DB_URL
+PAYGUARD_DB_USERNAME
+PAYGUARD_DB_PASSWORD
+PORT
+```
+
+Projede bilerek varsayılan profil tanımlanmamıştır. Böylece profil seçilmeden
+başlatılan bir deployment'ın yanlışlıkla yerel veritabanına bağlanması yerine
+uygulama güvenli biçimde bağlantı hatası vererek durur.
 
 ## Projeyi çalıştırma
 
@@ -298,17 +347,51 @@ GRANT ALL PRIVILEGES ON payguard.*
 FLUSH PRIVILEGES;
 ```
 
-### 3. Veritabanı şifresini ortam değişkeni olarak tanımlayın
+### 3. Yerel ortam değişkenlerini tanımlayın
 
-Geçerli PowerShell oturumu için:
+Geçerli PowerShell oturumunda veritabanı şifresini tanımlayın ve `local`
+profilini etkinleştirin:
 
 ```powershell
 $env:PAYGUARD_DB_PASSWORD="guvenli-bir-sifre"
+$env:SPRING_PROFILES_ACTIVE="local"
 ```
 
-Şifreyi `application.properties` veya Git geçmişine eklemeyin.
+macOS/Linux:
 
-### 4. Uygulamayı başlatın
+```bash
+export PAYGUARD_DB_PASSWORD="guvenli-bir-sifre"
+export SPRING_PROFILES_ACTIVE="local"
+```
+
+Environment variable değerleri yalnızca o terminal oturumu için geçerlidir.
+Şifreyi herhangi bir `application*.properties` dosyasına veya Git geçmişine
+eklemeyin.
+
+### 4. Veritabanı migration'ları
+
+Uygulama başlatıldığında Flyway, `src/main/resources/db/migration`
+altındaki migration dosyalarını sürüm sırasına göre otomatik olarak çalıştırır:
+
+```text
+V1__initial_schema.sql
+V2__add_payment_transaction_details.sql
+V3__create_user_accounts.sql
+```
+
+- `V1`, temel müşteri, sanal kart ve işlem tablolarını oluşturur.
+- `V2`, ödeme işleminin internet, yurt dışı ve işlem sonrası bakiye bilgilerini ekler.
+- `V3`, Spring Security kullanıcı hesapları tablosunu oluşturur.
+- Uygulanan migration'lar `flyway_schema_history` tablosunda kayıt altında tutulur.
+
+Tabloları elle oluşturmak gerekmez. Hibernate şemayı değiştirmez;
+`spring.jpa.hibernate.ddl-auto=validate` ayarıyla entity ve tablo yapılarının
+uyumlu olduğunu doğrular.
+
+Varsayılan yapılandırmada `baseline-on-migrate` açık değildir. Böylece Flyway
+geçmişi bulunmayan dolu bir veritabanının yanlışlıkla sahiplenilmesi engellenir.
+
+### 5. Uygulamayı başlatın
 
 Windows:
 
@@ -323,6 +406,26 @@ macOS/Linux:
 ```
 
 Uygulama varsayılan olarak `http://localhost:8080` adresinde çalışır.
+Başlangıç logunda aşağıdaki satır görülmelidir:
+
+```text
+The following 1 profile is active: "local"
+```
+
+### Production profili
+
+Production ortamında uygulama başlamadan önce aşağıdaki değerler hosting
+sağlayıcısı veya sunucu üzerinden tanımlanır:
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE="prod"
+$env:PAYGUARD_DB_URL="jdbc:mysql://db-host:3306/payguard"
+$env:PAYGUARD_DB_USERNAME="payguard_user"
+$env:PAYGUARD_DB_PASSWORD="production-sifresi"
+$env:PORT="8080"
+```
+
+Bu değerler yalnızca örnektir; gerçek production bilgileri repoya eklenmez.
 
 ## Test stratejisi
 
@@ -357,7 +460,20 @@ macOS/Linux:
 ./mvnw clean test
 ```
 
-Testcontainers, entegrasyon testleri sırasında geçici bir `mysql:8.4` container'ı başlatır ve test sonunda yönetir. Image daha önce indirildiyse Docker tekrar indirme yapmayabilir; testin kısa sürmesi normaldir.
+Testcontainers, entegrasyon testleri sırasında ihtiyaç duyulan izole
+`mysql:8.4` container'larını otomatik olarak başlatır. Tam test paketi
+çalışırken Docker Desktop'ta rastgele isim ve portlara sahip birden fazla
+geçici MySQL container'ı görülebilir; bu normaldir.
+
+Gerçek veritabanı kullanan context ve repository testleri
+`@ActiveProfiles("test")` ile test profilini etkinleştirir. JDBC URL, kullanıcı
+adı ve şifre dosyaya yazılmaz; `@ServiceConnection` bu değerleri çalışan
+MySQL container'ından Spring Boot'a otomatik olarak aktarır. Mockito tabanlı
+unit testleri gerçek veritabanına ihtiyaç duymadığı için bu profili kullanmaz.
+
+`Ryuk` isimli yardımcı container, testler tamamlandığında geçici kaynakların
+temizlenmesini yönetir. MySQL image'ı daha önce indirildiyse Docker aynı
+image'ı yeniden indirmez.
 
 Beklenen güncel sonuç:
 
@@ -381,15 +497,20 @@ src
 │   │   ├── security     # UserDetails ve sahiplik politikası
 │   │   └── service      # İş kuralları ve transaction sınırları
 │   └── resources
-│       └── application.properties
+│       ├── db/migration                  # Flyway migration'ları
+│       ├── application.properties        # Ortak ayarlar
+│       ├── application-local.properties  # Yerel MySQL bağlantısı
+│       └── application-prod.properties   # Production environment değişkenleri
 └── test
-    └── java/dev/onurerkoc/payguard
-        ├── config       # Testcontainers yapılandırması
-        ├── controller   # MockMvc testleri
-        ├── entity       # Entity davranış testleri
-        ├── repository   # Gerçek MySQL entegrasyon testleri
-        ├── security     # Authentication ve authorization testleri
-        └── service      # Unit testler
+    ├── java/dev/onurerkoc/payguard
+    │   ├── config       # Testcontainers yapılandırması
+    │   ├── controller   # MockMvc testleri
+    │   ├── entity       # Entity davranış testleri
+    │   ├── repository   # Gerçek MySQL entegrasyon testleri
+    │   ├── security     # Authentication ve authorization testleri
+    │   └── service      # Unit testler
+    └── resources
+        └── application-test.properties   # Test ortamı ayarları
 ```
 
 ## Tasarım kararları
@@ -410,11 +531,32 @@ Aynı kart bakiyesini iki transaction eş zamanlı değiştirebilir. `@Version`,
 
 Repository davranışları yalnızca mock veya H2 ile değil, üretimde kullanılan veritabanı ailesiyle doğrulanır. Testcontainers her test çalıştırmasında izole ve tekrarlanabilir bir MySQL ortamı sağlar.
 
+### Neden Flyway?
+
+Hibernate'in şemayı otomatik olarak güncellemesi yerine bütün veritabanı
+değişiklikleri sürümlü SQL dosyalarıyla yönetilir. Böylece şemanın hangi
+değişikliklerden geçtiği Git geçmişinden ve `flyway_schema_history`
+tablosundan izlenebilir.
+
+Yeni bir ortam V1'den başlayarak aynı migration sırasını çalıştırır.
+Uygulanmış migration dosyaları değiştirilmez; sonraki değişiklikler V4,
+V5 ve devam eden sürümler olarak eklenir.
+
+### Neden ortam profilleri ayrıldı?
+
+Yerel geliştirme, otomatik test ve production ortamları aynı bağlantı
+bilgilerini kullanmaz. Spring Profiles sayesinde iş kodu değiştirilmeden yalnızca
+ortama ait yapılandırma seçilir. Yerel şifre kaynak koda yazılmaz, testler
+izole MySQL container'larında çalışır ve production bağlantısı yalnızca
+sunucunun environment variable değerlerinden alınır.
+
 ### Neden DTO kullanılıyor?
 
 Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebileceği alanları sınırlar, validation kurallarını taşır ve persistence modelinin dışarı sızmasını engeller.
 
 ## Yol haritası
+
+### Tamamlanan temel
 
 - [x] Müşteri ve sanal kart domain modeli
 - [x] Ödeme yetkilendirme kuralları
@@ -422,17 +564,35 @@ Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebile
 - [x] Birim, web, güvenlik ve MySQL entegrasyon testleri
 - [x] Session tabanlı Spring Security temeli
 - [x] Rol ve müşteri sahipliği yetkilendirmesi
-- [ ] GitHub Actions ile otomatik test
-- [ ] Flyway ile sürümlü veritabanı migration'ları
-- [ ] Local, test ve production profillerini ayırma
-- [ ] OpenAPI/Swagger dokümantasyonu
-- [ ] Güvenli admin hesabı oluşturma akışı
-- [ ] React tabanlı sade kullanıcı paneli
-- [ ] Docker ile uygulama paketleme
+- [x] GitHub Actions ile otomatik test
+- [x] Flyway ile sürümlü veritabanı migration'ları
+- [x] Local, test ve production profillerini ayırma
+
+### Sıradaki geliştirme sırası
+
+| Sıra | Aşama | Neden bu sırada? |
+|---:|---|---|
+| 1 | OpenAPI/Swagger dokümantasyonu | Mevcut REST API'nin endpointlerini, request modellerini ve hata cevaplarını görünür ve denenebilir hâle getirir. |
+| 2 | Güvenli admin hesabı oluşturma akışı | Admin yetkili endpointlerin gerçek uygulama üzerinde kontrollü biçimde kullanılmasını sağlar. |
+| 3 | Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli | Hazır backend özelliklerini aynı-origin, session tabanlı bir web arayüzüyle kullanılabilir hâle getirir. |
+| 4 | Uygulamayı Docker ile paketleme | Uygulama ve MySQL'in farklı makinelerde tekrarlanabilir biçimde çalıştırılmasını kolaylaştırır. |
+
+### Daha sonra değerlendirilecek geliştirmeler
+
+- Spring Boot Actuator ile health ve uygulama durumu endpointleri
+- Filtreleme ve gelişmiş sayfalama seçenekleri
+- Test kapsamı raporu ve CI çıktılarının zenginleştirilmesi
+- Production deployment dokümantasyonu
+
+Bu sıra, projeyi gereksiz yere mikroservis, Kafka veya dağıtık sistem
+karmaşıklığına taşımadan mevcut monolitik yapıyı tamamlamayı hedefler.
 
 ## Proje durumu
 
-PayGuard aktif olarak geliştirilen bir portföy ve öğrenme projesidir. Mevcut sürüm backend, ödeme kuralları, veri tutarlılığı, güvenlik ve otomatik test temellerine odaklanmaktadır.
+PayGuard aktif olarak geliştirilen bir portföy ve öğrenme projesidir. Mevcut
+sürüm; REST backend, ödeme kuralları, veri tutarlılığı, güvenlik, migration
+yönetimi ve otomatik test altyapısını içerir. Son kullanıcıya yönelik Spring
+MVC/Thymeleaf paneli henüz eklenmemiştir ve yol haritasında yer almaktadır.
 
 > Bu proje eğitim ve portföy amacıyla geliştirilmiştir. Üretilen kart numaraları sentetiktir; gerçek kart verisi veya gerçek para transferi için kullanılmamalıdır.
 
