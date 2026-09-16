@@ -10,11 +10,12 @@ import org.springframework.context.annotation.Import;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
-
+@ActiveProfiles("test")
 @DataJpaTest
 @Import(MySqlTestcontainersConfiguration.class)
 class CustomerRepositoryIntegrationTest {
