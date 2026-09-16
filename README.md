@@ -5,7 +5,7 @@
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![Tests](https://img.shields.io/badge/tests-144%20passing-brightgreen)](#test-stratejisi)
+[![Tests](https://img.shields.io/badge/tests-146%20passing-brightgreen)](#test-stratejisi)
 [![CI](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml/badge.svg)](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml)
 [![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 
@@ -21,6 +21,7 @@ Projenin odağı yalnızca CRUD endpointleri oluşturmak değildir. Aynı ödeme
 - [Ödeme yetkilendirme akışı](#ödeme-yetkilendirme-akışı)
 - [Güvenlik modeli](#güvenlik-modeli)
 - [API endpointleri](#api-endpointleri)
+- [API dokümantasyonu](#api-dokümantasyonu)
 - [Teknoloji yığını](#teknoloji-yığını)
 - [Ortam profilleri](#ortam-profilleri)
 - [Projeyi çalıştırma](#projeyi-çalıştırma)
@@ -244,6 +245,33 @@ Content-Type: application/json
 }
 ```
 
+## API dokümantasyonu
+
+PayGuard endpointleri, request/response modelleri ve validation kuralları
+springdoc-openapi tarafından otomatik olarak OpenAPI 3 formatında belgelenir.
+
+Uygulama `local` profiliyle çalışırken dokümantasyona aşağıdaki adreslerden
+erişilebilir:
+
+| Kaynak | Adres |
+|---|---|
+| Swagger UI | `http://localhost:8080/swagger-ui.html` |
+| OpenAPI JSON | `http://localhost:8080/v3/api-docs` |
+| OpenAPI YAML | `http://localhost:8080/v3/api-docs.yaml` |
+
+Swagger UI üzerinden korunan GET endpointlerini denemek için sağ üstteki
+`Authorize` butonu kullanılabilir. Kullanıcı adı olarak kayıtlı e-posta,
+şifre olarak hesabın gerçek şifresi girilir.
+
+Swagger, HTTP Basic bilgisini isteklerde `Authorization` header'ı ile gönderir.
+Bu değer şifrelenmiş değil, Base64 kodlanmış olduğundan gerçek ortamlarda
+uygulama mutlaka HTTPS üzerinden çalıştırılmalıdır.
+
+OpenAPI entegrasyonu uygulamanın güvenlik kurallarını devre dışı bırakmaz.
+Müşteri ve kart endpointlerinde kimlik doğrulama ve sahiplik kontrolü devam
+eder. Durum değiştiren `POST`, `PUT`, `PATCH` ve `DELETE` isteklerinde CSRF
+koruması açık kalır.
+
 ## Teknoloji yığını
 
 | Alan | Teknoloji |
@@ -251,6 +279,7 @@ Content-Type: application/json
 | Dil | Java 21 |
 | Framework | Spring Boot 4.1.1 |
 | Web | Spring Web MVC (REST) |
+| API dokümantasyonu | OpenAPI 3, Swagger UI, springdoc-openapi |
 | Güvenlik | Spring Security, session authentication, BCrypt, CSRF |
 | Persistence | Spring Data JPA, Hibernate |
 | Veritabanı migration | Flyway |
@@ -429,7 +458,7 @@ Bu değerler yalnızca örnektir; gerçek production bilgileri repoya eklenmez.
 
 ## Test stratejisi
 
-PayGuard'ın güncel test tabanı **144 başarılı testten** oluşur.
+PayGuard'ın güncel test tabanı **146 başarılı testten** oluşur.
 
 ```mermaid
 flowchart TD
@@ -478,7 +507,7 @@ image'ı yeniden indirmez.
 Beklenen güncel sonuç:
 
 ```text
-Tests run: 144, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 146, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -488,7 +517,7 @@ BUILD SUCCESS
 src
 ├── main
 │   ├── java/dev/onurerkoc/payguard
-│   │   ├── config       # Spring Security yapılandırması
+│   │   ├── config       # Spring Security ve OpenAPI yapılandırması
 │   │   ├── controller   # REST endpointleri
 │   │   ├── dto          # Request ve response sözleşmeleri
 │   │   ├── entity       # JPA domain modelleri
@@ -567,15 +596,15 @@ Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebile
 - [x] GitHub Actions ile otomatik test
 - [x] Flyway ile sürümlü veritabanı migration'ları
 - [x] Local, test ve production profillerini ayırma
+- [x] OpenAPI 3 ve Swagger UI dokümantasyonu
 
 ### Sıradaki geliştirme sırası
 
 | Sıra | Aşama | Neden bu sırada? |
 |---:|---|---|
-| 1 | OpenAPI/Swagger dokümantasyonu | Mevcut REST API'nin endpointlerini, request modellerini ve hata cevaplarını görünür ve denenebilir hâle getirir. |
-| 2 | Güvenli admin hesabı oluşturma akışı | Admin yetkili endpointlerin gerçek uygulama üzerinde kontrollü biçimde kullanılmasını sağlar. |
-| 3 | Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli | Hazır backend özelliklerini aynı-origin, session tabanlı bir web arayüzüyle kullanılabilir hâle getirir. |
-| 4 | Uygulamayı Docker ile paketleme | Uygulama ve MySQL'in farklı makinelerde tekrarlanabilir biçimde çalıştırılmasını kolaylaştırır. |
+| 1 | Güvenli admin hesabı oluşturma akışı | Admin yetkili endpointlerin gerçek uygulama üzerinde kontrollü biçimde kullanılmasını sağlar. |
+| 2 | Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli | Hazır backend özelliklerini aynı-origin, session tabanlı bir web arayüzüyle kullanılabilir hâle getirir. |
+| 3 | Uygulamayı Docker ile paketleme | Uygulama ve MySQL'in farklı makinelerde tekrarlanabilir biçimde çalıştırılmasını kolaylaştırır. |
 
 ### Daha sonra değerlendirilecek geliştirmeler
 
@@ -590,9 +619,10 @@ karmaşıklığına taşımadan mevcut monolitik yapıyı tamamlamayı hedefler.
 ## Proje durumu
 
 PayGuard aktif olarak geliştirilen bir portföy ve öğrenme projesidir. Mevcut
-sürüm; REST backend, ödeme kuralları, veri tutarlılığı, güvenlik, migration
-yönetimi ve otomatik test altyapısını içerir. Son kullanıcıya yönelik Spring
-MVC/Thymeleaf paneli henüz eklenmemiştir ve yol haritasında yer almaktadır.
+sürüm; REST backend, ödeme kuralları, veri tutarlılığı, güvenlik, OpenAPI
+dokümantasyonu, migration yönetimi ve otomatik test altyapısını içerir. Son
+kullanıcıya yönelik Spring MVC/Thymeleaf paneli henüz eklenmemiştir ve yol
+haritasında yer almaktadır.
 
 > Bu proje eğitim ve portföy amacıyla geliştirilmiştir. Üretilen kart numaraları sentetiktir; gerçek kart verisi veya gerçek para transferi için kullanılmamalıdır.
 
