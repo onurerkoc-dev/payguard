@@ -20,7 +20,9 @@ import dev.onurerkoc.payguard.entity.CardTransactionDeclineReason;
 import java.time.Instant;
 import java.util.List;
 import jakarta.persistence.EntityManager;
+import org.springframework.test.context.ActiveProfiles;
 
+@ActiveProfiles("test")
 @DataJpaTest
 @Import(MySqlTestcontainersConfiguration.class)
 class CardTransactionRepositoryIntegrationTest {
