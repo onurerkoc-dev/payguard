@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="tr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kart detayı | PayGuard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<header class="bg-primary text-white py-3">
+    <div class="container">
+        <strong>PayGuard</strong>
+    </div>
+</header>
+
+<main class="container py-5">
+    <!-- Sayfa başına yalnızca bir kez gösterilen ödeme hatası. -->
+    <div th:if="${paymentError}"
+         class="alert alert-danger mx-auto"
+         style="max-width: 600px;"
+         role="alert"
+         th:text="${paymentError}">
+        Ödeme hatası
+    </div>
+    <!-- POST sonrası gelen ödeme sonucu yalnızca ilk sayfa açılışında görünür. -->
+    <div th:if="${paymentResult != null}"
+         class="alert mx-auto"
+         th:classappend="${paymentResult.status.name() == 'APPROVED'
+             ? 'alert-success' : 'alert-warning'}"
+         style="max-width: 600px;"
+         role="alert">
+
+        <strong th:text="${paymentResult.status.name() == 'APPROVED'
+            ? 'Ödeme onaylandı' : 'Ödeme reddedildi'}">
+            Ödeme sonucu
+        </strong>
+
+        <div th:text="${'İşlem no: ' + paymentResult.transactionId
+            + ' · Tutar: ' + paymentResult.amount}">
+            İşlem bilgisi
+        </div>
+
+        <div th:if="${paymentResult.declineReason != null}"
+             th:text="${paymentResult.declineReason.displayName}">
+            Ret nedeni
+        </div>
+    </div>
+    <!-- Kart bilgileri -->
+    <div class="card shadow-sm mx-auto" style="max-width: 600px;">
+        <div class="card-body p-4">
+            <h1 class="h3" th:text="${cardName}">Kart adı</h1>
+
+            <span th:if="${frozen}" class="badge text-bg-warning">
+                Dondurulmuş
+            </span>
+            <span th:unless="${frozen}" class="badge text-bg-success">
+                Aktif
+            </span>
+
+            <hr>
+
+            <p>Bakiye: <strong th:text="${balance}">0.00</strong></p>
+            <p>
+                Tek işlem limiti:
+                <strong th:text="${singleTransactionLimit}">0.00</strong>
+            </p>
+            <p>
+                Günlük limit:
+                <strong th:text="${dailyLimit}">0.00</strong>
+            </p>
+            <p>
+                İnternet işlemleri:
+                <strong th:text="${onlineTransactionsEnabled ? 'Açık' : 'Kapalı'}">
+                    Durum
+                </strong>
+            </p>
+            <p>
+                Yurt dışı işlemleri:
+                <strong th:text="${internationalTransactionsEnabled ? 'Açık' : 'Kapalı'}">
+                    Durum
+                </strong>
+            </p>
+
+            <!-- Kart işlemleri aynı kutuda yan yana durur. -->
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <a th:href="@{/cards/{id}/payments/new(id=${cardId})}"
+                   class="btn btn-outline-primary">
+                    Ödeme simüle et
+                </a>
+                <a th:href="@{/cards/{id}/payment-settings(id=${cardId})}"
+                   class="btn btn-outline-primary">
+                    Ödeme izinleri
+                </a>
+                <a th:href="@{/}" class="btn btn-outline-primary">
+                    Panele dön
+                </a>
+
+                <a th:href="@{/cards/{id}/balance(id=${cardId})}"
+                   class="btn btn-primary">
+                    Örnek bakiye yükle
+                </a>
+
+                <form th:if="${!frozen}"
+                      th:action="@{/cards/{id}/freeze(id=${cardId})}"
+                      method="post">
+                    <button type="submit" class="btn btn-warning">
+                        Kartı dondur
+                    </button>
+                </form>
+
+                <form th:if="${frozen}"
+                      th:action="@{/cards/{id}/unfreeze(id=${cardId})}"
+                      method="post">
+                    <button type="submit" class="btn btn-success">
+                        Kartı kullanıma aç
+                    </button>
+                </form>
+            </div>
+        </div> <!-- Kart gövdesi bitti -->
+    </div> <!-- Kart kutusu bitti -->
+
+    <!-- İşlem geçmişi ayrı bir kutudur. -->
+    <div class="card shadow-sm mx-auto mt-4" style="max-width: 600px;">
+        <div class="card-body p-4">
+            <h2 class="h5">Son 10 işlem</h2>
+
+            <p th:if="${#lists.isEmpty(transactions)}"
+               class="text-muted mb-0">
+                Bu kartta henüz işlem yok.
+            </p>
+
+            <ul th:unless="${#lists.isEmpty(transactions)}"
+                class="list-group list-group-flush">
+                <li th:each="transaction : ${transactions}"
+                    class="list-group-item d-flex justify-content-between px-0">
+
+                    <span th:text="${transaction.type.name() == 'BALANCE_LOAD'
+                            ? 'Bakiye yükleme' : 'Ödeme'}">
+                        İşlem türü
+                    </span>
+
+                    <span class="text-end">
+                        <strong th:text="${transaction.amount}">250.00</strong>
+                        <br>
+                        <small class="text-muted"
+                               th:text="${transaction.status.name() == 'APPROVED'
+                                       ? 'Onaylandı' : 'Reddedildi'}">
+                            Durum
+                        </small>
+                        <br th:if="${transaction.declineReason != null}">
+<small class="text-danger"
+       th:if="${transaction.declineReason != null}"
+       th:text="${transaction.declineReason.displayName}">
+    Ret nedeni
+</small>
+                    </span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+</main>
+
+</body>
+</html>
