@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ödeme simülasyonu | PayGuard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<header class="bg-primary text-white py-3">
+    <div class="container">
+        <strong>PayGuard</strong>
+    </div>
+</header>
+
+<main class="container py-5">
+    <div class="card shadow-sm mx-auto" style="max-width: 600px;">
+        <div class="card-body p-4">
+            <h1 class="h3">Ödeme simülasyonu</h1>
+            <p class="text-muted">Bu ekranda gerçek bir ödeme yapılmaz.</p>
+            <!-- paymentRequest, controller'ın model ile gönderdiği DTO'dur. -->
+            <form th:action="@{/cards/{id}/payments(id=${cardId})}"
+                  th:object="${paymentRequest}"
+                  method="post">
+
+                <div class="mb-3">
+                    <label for="merchantName" class="form-label">Mağaza adı</label>
+                    <input id="merchantName" type="text" class="form-control"
+                           th:field="*{merchantName}"
+                           maxlength="100" required>
+
+                    <div class="text-danger small"
+                         th:if="${#fields.hasErrors('merchantName')}"
+                         th:errors="*{merchantName}"></div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="amount" class="form-label">Tutar</label>
+                    <input id="amount" type="number" class="form-control"
+                           th:field="*{amount}"
+                           min="0.01" step="0.01" required>
+
+                    <div class="text-danger small"
+                         th:if="${#fields.hasErrors('amount')}"
+                         th:errors="*{amount}"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="onlineTransaction" class="form-label">
+                        İnternet işlemi mi?
+                    </label>
+                    <select id="onlineTransaction" class="form-select"
+                            th:field="*{onlineTransaction}" required>
+                        <option value="">Seçiniz</option>
+                        <option value="true">Evet</option>
+                        <option value="false">Hayır</option>
+                    </select>
+
+                    <div class="text-danger small"
+                         th:if="${#fields.hasErrors('onlineTransaction')}"
+                         th:errors="*{onlineTransaction}"></div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="internationalTransaction" class="form-label">
+                        Yurt dışı işlemi mi?
+                    </label>
+                    <select id="internationalTransaction" class="form-select"
+                            th:field="*{internationalTransaction}" required>
+                        <option value="">Seçiniz</option>
+                        <option value="true">Evet</option>
+                        <option value="false">Hayır</option>
+                    </select>
+
+                    <div class="text-danger small"
+                         th:if="${#fields.hasErrors('internationalTransaction')}"
+                         th:errors="*{internationalTransaction}"></div>
+                </div>
+
+                <!-- DTO alanı değil: aynı formun tekrar gönderimini tanımlayan anahtar. -->
+                <input type="hidden" name="idempotencyKey"
+                       th:value="${idempotencyKey}">
+                <!-- POST metodu hazır olana kadar ödeme butonu kapalı. -->
+                <button type="submit" class="btn btn-primary">
+                    Ödemeyi dene
+                </button>
+            </form>
+            <a th:href="@{/cards/{id}(id=${cardId})}"
+               class="btn btn-outline-secondary">
+                Kart detayına dön
+            </a>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>

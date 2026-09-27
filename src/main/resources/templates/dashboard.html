@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="tr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hesap paneli | PayGuard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<header class="bg-primary text-white py-3">
+    <div class="container d-flex justify-content-between align-items-center">
+        <a th:href="@{/}"
+           class="text-white text-decoration-none fs-5 fw-bold">
+            PayGuard
+        </a>
+
+        <!-- Email, giriş yapan kullanıcıdan controller aracılığıyla gelir. -->
+        <span th:text="${email}">kullanici@example.com</span>
+    </div>
+</header>
+
+<main class="container py-5">
+    <h1 class="h2 fw-bold">Hesap paneli</h1>
+    <p class="text-muted mb-4">
+        Sanal kartlarınızı ve işlemlerinizi yönetin.
+    </p>
+
+    <div class="row g-4">
+
+        <!-- Sol bölüm: giriş yapan müşterinin kartları. -->
+        <div class="col-lg-6">
+            <section class="card shadow-sm h-100">
+                <div class="card-body p-4">
+                    <h2 class="h4">Kartlarım</h2>
+
+                    <a th:href="@{/cards/new}"
+                       class="btn btn-primary btn-sm mb-4">
+                        Yeni sanal kart
+                    </a>
+
+                    <p th:if="${#lists.isEmpty(cards)}"
+                       class="text-muted mb-0">
+                        Henüz sanal kartınız yok.
+                    </p>
+
+                    <!-- cards listesindeki her kart için ayrı kutu oluşturulur. -->
+                    <div th:each="card : ${cards}"
+                         class="border rounded p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <strong th:text="${card.cardName}">
+                                Kart adı
+                            </strong>
+
+                            <span th:if="${card.frozen}"
+                                  class="badge text-bg-warning">
+                                Dondurulmuş
+                            </span>
+                            <span th:unless="${card.frozen}"
+                                  class="badge text-bg-success">
+                                Aktif
+                            </span>
+                        </div>
+
+                        <!-- Kart numarasının yalnızca maskelenmiş hâli gösterilir. -->
+                        <p class="text-muted mt-2 mb-2"
+                           th:text="${card.maskedCardNumber}">
+                            **** **** **** 1234
+                        </p>
+
+                        <p class="mb-3">
+                            Bakiye:
+                            <strong th:text="${card.balance}">0.00</strong>
+                        </p>
+
+                        <a th:href="@{/cards/{id}(id=${card.id})}"
+                           class="btn btn-outline-primary btn-sm">
+                            Detayları gör
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Sağ bölüm: işlem geçmişine kart üzerinden ulaşılır. -->
+        <div class="col-lg-6">
+            <section class="card shadow-sm h-100">
+                <div class="card-body p-4">
+                    <h2 class="h4 mb-3">İşlem geçmişi</h2>
+
+                    <p th:if="${#lists.isEmpty(cards)}"
+                       class="text-muted mb-0">
+                        İşlemleri görmek için önce bir kart oluşturun.
+                    </p>
+
+                    <div th:unless="${#lists.isEmpty(cards)}"
+                         class="list-group">
+                        <a th:each="card : ${cards}"
+                           th:href="@{/cards/{id}(id=${card.id})}"
+                           class="list-group-item list-group-item-action
+                                  d-flex justify-content-between align-items-center">
+                            <span th:text="${card.cardName}">
+                                Kart adı
+                            </span>
+                            <small class="text-primary">
+                                İşlemleri gör
+                            </small>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    </div>
+</main>
+
+</body>
+</html>
