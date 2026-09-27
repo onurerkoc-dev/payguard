@@ -1,7 +1,6 @@
 # PayGuard
 
-> Güvenli sanal kart yönetimi ve ödeme yetkilendirme akışlarını modelleyen Spring Boot REST API.
-
+> Sanal kart yönetimi ve ödeme simülasyonu sunan Spring Boot uygulaması; REST API ve Spring MVC kullanıcı paneli içerir.
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
@@ -70,8 +69,8 @@ PayGuard, sorumlulukları birbirinden ayıran katmanlı bir mimari kullanır.
 
 ```mermaid
 flowchart TD
-    Client["REST istemcisi / Postman"] --> Security["Spring Security Filter Chain"]
-    Security --> Controller["Controller + DTO Validation"]
+    Client["Tarayıcı / REST istemcisi"] --> Security["Spring Security Filter Chain"]
+    Security --> Controller["MVC ve REST controller'ları"]
     Controller --> Service["Service + İş Kuralları"]
     Service --> Policy["Yetkilendirme Politikaları"]
     Service --> Repository["Spring Data JPA Repository"]
@@ -278,7 +277,7 @@ koruması açık kalır.
 |---|---|
 | Dil | Java 21 |
 | Framework | Spring Boot 4.1.1 |
-| Web | Spring Web MVC (REST) |
+| Web | Spring Web MVC (REST API), Thymeleaf, Bootstrap |
 | API dokümantasyonu | OpenAPI 3, Swagger UI, springdoc-openapi |
 | Güvenlik | Spring Security, session authentication, BCrypt, CSRF |
 | Persistence | Spring Data JPA, Hibernate |
@@ -518,7 +517,7 @@ src
 ├── main
 │   ├── java/dev/onurerkoc/payguard
 │   │   ├── config       # Spring Security ve OpenAPI yapılandırması
-│   │   ├── controller   # REST endpointleri
+│   │   ├── controller   # REST API ve MVC sayfaları
 │   │   ├── dto          # Request ve response sözleşmeleri
 │   │   ├── entity       # JPA domain modelleri
 │   │   ├── exception    # Domain hataları ve global hata yönetimi
@@ -526,6 +525,7 @@ src
 │   │   ├── security     # UserDetails ve sahiplik politikası
 │   │   └── service      # İş kuralları ve transaction sınırları
 │   └── resources
+│       ├── templates                     # Thymeleaf HTML sayfaları
 │       ├── db/migration                  # Flyway migration'ları
 │       ├── application.properties        # Ortak ayarlar
 │       ├── application-local.properties  # Yerel MySQL bağlantısı
@@ -546,7 +546,10 @@ src
 
 ### Neden session tabanlı authentication?
 
-Proje, ileride eklenecek aynı-origin web arayüzüyle çalışacak şekilde tasarlanmıştır. Bu nedenle kimlik bilgisini browser tarafında elle saklamak yerine sunucu tarafından yönetilen session tercih edilmiştir.
+Spring MVC ve Thymeleaf paneli, kullanıcı girişini session üzerinden yönetir.
+Girişten sonra tarayıcı oturum çerezini sonraki isteklerde gönderir; kullanıcı
+kimliğini her formda ayrıca taşımamız gerekmez. Spring Security, kart
+işlemlerinde oturumu ve CSRF korumasını kontrol eder.
 
 ### Neden idempotency?
 
@@ -597,14 +600,14 @@ Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebile
 - [x] Flyway ile sürümlü veritabanı migration'ları
 - [x] Local, test ve production profillerini ayırma
 - [x] OpenAPI 3 ve Swagger UI dokümantasyonu
+- [x] Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli
 
 ### Sıradaki geliştirme sırası
 
 | Sıra | Aşama | Neden bu sırada? |
-|---:|---|---|
-| 1 | Güvenli admin hesabı oluşturma akışı | Admin yetkili endpointlerin gerçek uygulama üzerinde kontrollü biçimde kullanılmasını sağlar. |
-| 2 | Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli | Hazır backend özelliklerini aynı-origin, session tabanlı bir web arayüzüyle kullanılabilir hâle getirir. |
-| 3 | Uygulamayı Docker ile paketleme | Uygulama ve MySQL'in farklı makinelerde tekrarlanabilir biçimde çalıştırılmasını kolaylaştırır. |
+|-----:|---|---|
+|    1 | Güvenli admin hesabı oluşturma akışı | Admin yetkili endpointlerin gerçek uygulama üzerinde kontrollü biçimde kullanılmasını sağlar. |
+|    2 | Uygulamayı Docker ile paketleme | Uygulama ve MySQL'in farklı makinelerde tekrarlanabilir biçimde çalıştırılmasını kolaylaştırır. |
 
 ### Daha sonra değerlendirilecek geliştirmeler
 
@@ -618,11 +621,11 @@ karmaşıklığına taşımadan mevcut monolitik yapıyı tamamlamayı hedefler.
 
 ## Proje durumu
 
-PayGuard aktif olarak geliştirilen bir portföy ve öğrenme projesidir. Mevcut
-sürüm; REST backend, ödeme kuralları, veri tutarlılığı, güvenlik, OpenAPI
-dokümantasyonu, migration yönetimi ve otomatik test altyapısını içerir. Son
-kullanıcıya yönelik Spring MVC/Thymeleaf paneli henüz eklenmemiştir ve yol
-haritasında yer almaktadır.
+PayGuard aktif olarak geliştirilen bir portföy ve öğrenme projesidir.
+REST API'nin yanında Spring MVC, Thymeleaf ve Bootstrap ile hazırlanmış
+bir kullanıcı paneli bulunur. Kullanıcılar bu panelden sanal kartlarını
+yönetebilir, bakiye yükleyebilir, ödeme simüle edebilir, ödeme izinlerini
+değiştirebilir ve işlem geçmişini görebilir.
 
 > Bu proje eğitim ve portföy amacıyla geliştirilmiştir. Üretilen kart numaraları sentetiktir; gerçek kart verisi veya gerçek para transferi için kullanılmamalıdır.
 

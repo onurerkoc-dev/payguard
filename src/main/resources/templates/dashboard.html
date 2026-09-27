@@ -16,8 +16,16 @@
             PayGuard
         </a>
 
-        <!-- Email, giriş yapan kullanıcıdan controller aracılığıyla gelir. -->
-        <span th:text="${email}">kullanici@example.com</span>
+        <div class="d-flex align-items-center gap-3">
+            <span th:text="${email}">kullanici@example.com</span>
+
+            <!-- Spring Security, POST /logout isteğinde oturumu kapatır. -->
+            <form th:action="@{/logout}" method="post" class="m-0">
+                <button type="submit" class="btn btn-outline-light btn-sm">
+                    Çıkış yap
+                </button>
+            </form>
+        </div>  
     </div>
 </header>
 
