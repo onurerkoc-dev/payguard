@@ -7,11 +7,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
-
+import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestControllerAdvice
+// JSON hata cevaplarını yalnızca REST API controller'ları için üret.
+@RestControllerAdvice(annotations = RestController.class)
 public class GlobalExceptionHandler {
 /*
 Service exception fırlatır
