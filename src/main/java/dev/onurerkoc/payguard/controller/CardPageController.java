@@ -3,9 +3,11 @@ package dev.onurerkoc.payguard.controller;
 import dev.onurerkoc.payguard.dto.*;
 import dev.onurerkoc.payguard.exception.IdempotencyConflictException;
 import dev.onurerkoc.payguard.exception.InvalidCardLimitException;
+import dev.onurerkoc.payguard.exception.VirtualCardNotFoundException;
 import dev.onurerkoc.payguard.security.PayGuardUserDetails;
 import dev.onurerkoc.payguard.service.VirtualCardService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -259,5 +261,11 @@ public class CardPageController {
         );
 
         return "redirect:/cards/" + cardId;
+    }
+    @ExceptionHandler(VirtualCardNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public String showCardNotFoundPage() {
+        // Kart bulunamadığında HTML şablonunu 404 durum koduyla göster.
+        return "card-not-found";
     }
 }

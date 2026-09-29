@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="tr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kart bulunamadı | PayGuard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<main class="container py-5">
+    <div class="card shadow-sm mx-auto" style="max-width: 600px;">
+        <div class="card-body p-4">
+            <h1 class="h3">Kart bulunamadı</h1>
+            <p class="text-muted">
+                Kart mevcut olmayabilir veya hesabınıza ait olmayabilir.
+            </p>
+
+            <!-- Kullanıcıyı kendi kartlarının listesine geri götürür. -->
+            <a th:href="@{/}" class="btn btn-primary">
+                Panele dön
+            </a>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>
