@@ -23,6 +23,12 @@ public class DashboardController {
             Model model,
             @AuthenticationPrincipal PayGuardUserDetails user) {
 
+        // Adminin müşteri profili olmadığı için kart paneline yönlendirilmez.
+        if (user.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"))) {
+            return "redirect:/admin";
+        }
+
         // Giriş yapan kişinin e-postasını HTML sayfasına gönderir.
         model.addAttribute("email", user.getUsername());
 

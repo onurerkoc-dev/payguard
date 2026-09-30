@@ -4,7 +4,7 @@
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![Tests](https://img.shields.io/badge/tests-146%20passing-brightgreen)](#test-stratejisi)
+[![Tests](https://img.shields.io/badge/tests-215%20passing-brightgreen)](#test-stratejisi)
 [![CI](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml/badge.svg)](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml)
 [![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 
@@ -440,6 +440,60 @@ Başlangıç logunda aşağıdaki satır görülmelidir:
 The following 1 profile is active: "local"
 ```
 
+### İlk admin hesabının kurulumu
+
+Repodaki `src/main/resources/application.properties` içinde admin kurulumu
+kapalı, e-posta ve şifre alanları boştur. Bu dosyaya gerçek hesap bilgilerini
+yazmayın. Kurulum bilgileri projenin ana klasöründeki
+`config/application.properties` dosyasında tutulur.
+
+Bu yerel dosya `.gitignore` ile Git takibinin dışındadır ve normal Maven
+paketlemesinde JAR'a eklenmez. Projeyi yeni klonladıysanız `config` klasörünü
+ve içindeki `application.properties` dosyasını kendiniz oluşturun:
+
+```properties
+payguard.admin-bootstrap.enabled=false
+payguard.admin-bootstrap.email=
+payguard.admin-bootstrap.password=
+```
+
+İlk kurulumda **yerel dosyada** `enabled=true` yapın, e-posta ve şifre
+alanlarını doldurun. Şifre en az 12 karakter, en fazla 72 karakter ve
+UTF-8 olarak en fazla 72 byte olmalıdır. IntelliJ'den uygulamayı normal
+şekilde başlatın. Run Configuration içindeki **Working directory** projenin
+ana klasörü olmalıdır; Spring Boot bu klasördeki `config/application.properties`
+dosyasını otomatik olarak okur. Terminalden çalıştırırken de uygulamayı bu
+ana klasörden başlatın.
+
+Veritabanı bağlantısı başarılıysa başlangıçta admin hesabı oluşturulur
+ve logda `Admin hesabı oluşturuldu.` görülür. Ardından **yerel dosyada**
+`enabled=false` yapın, e-posta ve şifre alanlarını boşaltıp uygulamayı
+yeniden başlatın. Hesap veritabanında kalır; şifre yalnızca BCrypt hash
+olarak saklanır. Repodaki varsayılan dosyayı değiştirmek gerekmez.
+
+Aynı yöntem `local` ve `prod` profillerinde kullanılabilir. Sunucuda da
+uygulamanın başlatıldığı klasörde bir `config/application.properties`
+dosyası hazırlayın. Veritabanı bağlantı bilgileri admin hesabından ayrıdır
+ve ilgili profil için tanımlı olmalıdır.
+
+Aynı aktif admin zaten varsa mevcut hesap ve şifresi korunur. Normal
+kullanıcıya veya müşteri profiline ait e-posta kullanılamaz; devre dışı
+admin hesabı bu kurulumla yeniden etkinleştirilmez. Kurulum açıkken
+geçersiz veya eksik bilgiler uygulamanın başlangıcını durdurur.
+
+Normal kayıt endpointi her zaman `USER` oluşturur; herkese açık bir
+admin kurulum endpointi yoktur. Admin şifresi kurulum loguna yazılmaz.
+
+### Yönetici paneli
+
+Giriş yaptıktan sonra `http://localhost:8080/` adresini açın. `ADMIN`
+hesabı `/admin` yönetici paneline yönlendirilir; normal kullanıcı kendi
+kart panelinde kalır. Yönetici paneli müşterilerin ID, ad, soyad ve
+e-posta bilgilerini tablo olarak gösterir. Müşteri yoksa boş liste mesajı
+görülür. Normal kullanıcı `/admin` adresine erişemez.
+
+Paneldeki **Çıkış yap** düğmesi CSRF korumalı POST isteğiyle oturumu kapatır.
+
 ### Production profili
 
 Production ortamında uygulama başlamadan önce aşağıdaki değerler hosting
@@ -457,7 +511,7 @@ Bu değerler yalnızca örnektir; gerçek production bilgileri repoya eklenmez.
 
 ## Test stratejisi
 
-PayGuard'ın güncel test tabanı **146 başarılı testten** oluşur.
+PayGuard'ın güncel test tabanı **215 başarılı testten** oluşur.
 
 ```mermaid
 flowchart TD
@@ -506,7 +560,7 @@ image'ı yeniden indirmez.
 Beklenen güncel sonuç:
 
 ```text
-Tests run: 146, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 215, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -601,13 +655,13 @@ Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebile
 - [x] Local, test ve production profillerini ayırma
 - [x] OpenAPI 3 ve Swagger UI dokümantasyonu
 - [x] Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli
+- [x] Güvenli ilk admin kurulumu ve müşteri listeli yönetici paneli
 
 ### Sıradaki geliştirme sırası
 
 | Sıra | Aşama | Neden bu sırada? |
 |-----:|---|---|
-|    1 | Güvenli admin hesabı oluşturma akışı | Admin yetkili endpointlerin gerçek uygulama üzerinde kontrollü biçimde kullanılmasını sağlar. |
-|    2 | Uygulamayı Docker ile paketleme | Uygulama ve MySQL'in farklı makinelerde tekrarlanabilir biçimde çalıştırılmasını kolaylaştırır. |
+|    1 | Uygulamayı Docker ile paketleme | Uygulama ve MySQL'in farklı makinelerde tekrarlanabilir biçimde çalıştırılmasını kolaylaştırır. |
 
 ### Daha sonra değerlendirilecek geliştirmeler
 
