@@ -89,6 +89,10 @@
                    class="btn btn-outline-primary">
                     Ödeme simüle et
                 </a>
+                <a th:href="@{/cards/{id}/limits(id=${cardId})}"
+                   class="btn btn-outline-primary">
+                    Kart limitleri
+                </a>
                 <a th:href="@{/cards/{id}/payment-settings(id=${cardId})}"
                    class="btn btn-outline-primary">
                     Ödeme izinleri

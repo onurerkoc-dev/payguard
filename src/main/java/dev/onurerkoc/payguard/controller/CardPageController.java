@@ -262,6 +262,64 @@ public class CardPageController {
 
         return "redirect:/cards/" + cardId;
     }
+
+    @GetMapping("/cards/{cardId}/limits")
+    public String showCardLimitsPage(
+            @PathVariable Long cardId,
+            @AuthenticationPrincipal PayGuardUserDetails user,
+            Model model) {
+
+        // Kartı getir; servis kartın giriş yapan müşteriye ait olduğunu kontrol eder.
+        VirtualCardResponse card = virtualCardService.getCardById(
+                user.getCustomerId(), cardId
+        );
+
+        VirtualCardLimitUpdateRequest request =
+                new VirtualCardLimitUpdateRequest();
+
+        // Form açıldığında kartın kayıtlı limitleri alanlarda görünsün.
+        request.setSingleTransactionLimit(card.getSingleTransactionLimit());
+        request.setDailyLimit(card.getDailyLimit());
+
+        model.addAttribute("cardId", cardId);
+        model.addAttribute("limitRequest", request);
+
+        return "card-limits";
+    }
+
+    @PostMapping("/cards/{cardId}/limits")
+    public String updateCardLimits(
+            @PathVariable Long cardId,
+            @Valid @ModelAttribute("limitRequest")
+            VirtualCardLimitUpdateRequest request,
+            BindingResult errors,
+            @AuthenticationPrincipal PayGuardUserDetails user,
+            Model model) {
+
+        // Form hatalı olsa bile kartın bu müşteriye ait olduğunu kontrol et.
+        virtualCardService.getCardById(user.getCustomerId(), cardId);
+        model.addAttribute("cardId", cardId);
+
+        // Eksik, negatif veya geçersiz tutarda formu hatalarıyla göster.
+        if (errors.hasErrors()) {
+            return "card-limits";
+        }
+
+        try {
+            // Servis limitleri kontrol eder ve karta kaydeder.
+            virtualCardService.updateLimits(
+                    user.getCustomerId(), cardId, request
+            );
+        } catch (InvalidCardLimitException exception) {
+            // Günlük limit, tek işlem limitinden küçükse açıklamayı göster.
+            model.addAttribute("limitError", exception.getMessage());
+            return "card-limits";
+        }
+
+        // Başarılı kayıttan sonra güncel limitlerin görüldüğü detaya dön.
+        return "redirect:/cards/" + cardId;
+    }
+
     @ExceptionHandler(VirtualCardNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public String showCardNotFoundPage() {

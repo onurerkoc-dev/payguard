@@ -625,7 +625,7 @@ PayGuard aktif olarak geliştirilen bir portföy ve öğrenme projesidir.
 REST API'nin yanında Spring MVC, Thymeleaf ve Bootstrap ile hazırlanmış
 bir kullanıcı paneli bulunur. Kullanıcılar bu panelden sanal kartlarını
 yönetebilir, bakiye yükleyebilir, ödeme simüle edebilir, ödeme izinlerini
-değiştirebilir ve işlem geçmişini görebilir.
+değiştirebilir, kart limitlerini düzenleyebilir ve işlem geçmişini görebilir.
 
 > Bu proje eğitim ve portföy amacıyla geliştirilmiştir. Üretilen kart numaraları sentetiktir; gerçek kart verisi veya gerçek para transferi için kullanılmamalıdır.
 
