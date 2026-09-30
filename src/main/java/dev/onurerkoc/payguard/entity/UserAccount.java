@@ -59,6 +59,19 @@ public class UserAccount {
         // Yeni hesabın giriş yapmasına izin verilir.
         this.enabled = true;
     }
+
+    // Admin hesabı müşteri profiline bağlı olmadan oluşturulur.
+    public static UserAccount createAdmin(String email, String passwordHash) {
+        UserAccount account = new UserAccount();
+
+        account.email = email;
+        account.passwordHash = passwordHash;
+        account.role = UserRole.ADMIN;
+        account.enabled = true;
+
+        return account;
+    }
+
     public Long getId() {
         return id;
     }
