@@ -1,0 +1,48 @@
+services:
+  mysql:
+    image: mysql:8.4
+    ports:
+      - "127.0.0.1:3307:3306"
+    environment:
+      MYSQL_DATABASE: payguard
+      MYSQL_USER: payguard_user
+      MYSQL_PASSWORD: ${PAYGUARD_DB_PASSWORD:?PAYGUARD_DB_PASSWORD tanımlanmalı}
+      MYSQL_ROOT_PASSWORD: ${PAYGUARD_MYSQL_ROOT_PASSWORD:?PAYGUARD_MYSQL_ROOT_PASSWORD tanımlanmalı}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mysql --protocol=TCP -h 127.0.0.1 -u"$${MYSQL_USER}"
+          -p"$${MYSQL_PASSWORD}" "$${MYSQL_DATABASE}" -e "SELECT 1"
+          > /dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
+
+  app:
+    build: .
+    image: payguard:local
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PAYGUARD_DB_URL: jdbc:mysql://mysql:3306/payguard
+      PAYGUARD_DB_USERNAME: payguard_user
+      PAYGUARD_DB_PASSWORD: ${PAYGUARD_DB_PASSWORD:?PAYGUARD_DB_PASSWORD tanımlanmalı}
+      PORT: "8080"
+    ports:
+      - "127.0.0.1:${PAYGUARD_HTTP_PORT:-8080}:8080"
+    volumes:
+      - type: bind
+        source: ./config
+        target: /app/config
+        read_only: true
+        bind:
+          create_host_path: true
+
+volumes:
+  mysql_data:
