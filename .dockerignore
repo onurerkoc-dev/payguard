@@ -1,0 +1,10 @@
+.git
+.idea
+.vscode
+target
+config
+.env
+.env.*
+*.iml
+*.ps1
+AGENTS.md

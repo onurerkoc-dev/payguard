@@ -509,6 +509,74 @@ $env:PORT="8080"
 
 Bu değerler yalnızca örnektir; gerçek production bilgileri repoya eklenmez.
 
+### Docker Compose ile çalıştırma
+
+Docker Desktop açık olmalıdır. Projenin ana klasöründe `.env.example`
+dosyasını `.env` adıyla kopyalayın:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+macOS/Linux için `cp .env.example .env` kullanın. Yerel `.env` içinde
+`PAYGUARD_DB_PASSWORD` ve `PAYGUARD_MYSQL_ROOT_PASSWORD` alanlarına farklı,
+boş olmayan şifreler yazın. `.env` Git takibine ve Docker build ortamına
+gönderilmez; gerçek şifreleri `.env.example` veya `compose.yaml` içine yazmayın.
+`PAYGUARD_HTTP_PORT` varsayılan olarak `8080` değerindedir. IntelliJ'deki
+uygulama bu portu kullanıyorsa onu durdurun veya bu değeri `8081` yapın.
+Terminalde tanımlı aynı adlı değişkenler `.env` değerlerinden önceliklidir.
+
+```powershell
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps
+docker compose logs -f app
+```
+
+`config --quiet`, ayarları şifreleri ekrana basmadan doğrular. Uygulama
+hazır olduğunda `http://localhost:8080` adresini açın; portu değiştirdiyseniz
+yeni değeri kullanın. Port yalnızca yerel bilgisayara açılır. `logs -f`
+komutundan `Ctrl+C` ile çıkmak container'ları durdurmaz.
+
+Dockerfile, Maven Wrapper ile Java 21 üzerinde JAR üretir; son imajda
+JRE ve uygulama bulunur. İmaj build edilirken testler çalıştırılmaz;
+215 testten oluşan suite ayrı test komutuyla ve GitHub CI'da doğrulanır.
+Compose, MySQL 8.4 hazır olana kadar uygulamayı bekletir. MySQL'de uygulama
+kullanıcısıyla `SELECT 1` sorgusu başarılı olunca PayGuard başlatılır.
+
+Uygulama mevcut `prod` profilini kullanarak bağlantı bilgilerini environment
+değerlerinden okur. Burada `prod` seçimi Docker'ı internete yayınlamaz;
+bu Compose dosyası yerel çalıştırma içindir. MySQL'e `mysql:3306` üzerinden
+bağlanılır; MySQL portu yalnızca yerel bilgisayarda `127.0.0.1:3307` adresine
+açılır. Flyway migration'ları uygulama başlangıcında çalışır.
+
+MySQL Workbench içinde mevcut bağlantınızı koruyup `PayGuard Docker` adlı
+ayrı bir Standard TCP/IP bağlantısı oluşturun: Hostname `127.0.0.1`, Port
+`3307`, Username `payguard_user`, Default Schema `payguard`. Bağlantı şifresi
+yerel `.env` dosyasındaki `PAYGUARD_DB_PASSWORD` değeridir; paneldeki admin
+şifresi değildir. Workbench ile uygulama aynı Docker veritabanını kullanır.
+
+MySQL verileri `mysql_data` adlı kalıcı volume'da saklanır. Bu veritabanı
+IntelliJ'deki yerel MySQL'den ayrıdır; mevcut müşteri ve admin hesapları
+otomatik taşınmaz. Docker için ilk admin gerektiğinde yukarıdaki kurulum
+adımlarını aynı özel `config/application.properties` dosyasında uygulayın.
+Compose bu klasörü `/app/config` yoluna salt okunur bağlar; dosya imaja
+eklenmez. Kurulumdan sonra yerel dosyada bilgileri temizleyip
+`docker compose restart app` çalıştırın. Aynı klasörle IntelliJ'den
+çalıştırırken bootstrap ayarlarının kapalı olduğundan emin olun.
+
+Container'ları kaldırıp verileri saklamak için:
+
+```powershell
+docker compose down
+```
+
+Tekrar `docker compose up -d` çalıştırınca aynı volume kullanılır.
+`docker compose down --volumes` veritabanı volume'unu da siler; verileri
+saklamak istediğinizde kullanmayın. Volume ilk kez oluşturulduktan sonra
+`.env` içindeki şifreleri değiştirmek mevcut MySQL hesaplarının şifrelerini
+değiştirmez. Bunun için veritabanındaki hesabın şifresi de güncellenmelidir.
+
 ## Test stratejisi
 
 PayGuard'ın güncel test tabanı **215 başarılı testten** oluşur.
@@ -656,12 +724,7 @@ Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebile
 - [x] OpenAPI 3 ve Swagger UI dokümantasyonu
 - [x] Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli
 - [x] Güvenli ilk admin kurulumu ve müşteri listeli yönetici paneli
-
-### Sıradaki geliştirme sırası
-
-| Sıra | Aşama | Neden bu sırada? |
-|-----:|---|---|
-|    1 | Uygulamayı Docker ile paketleme | Uygulama ve MySQL'in farklı makinelerde tekrarlanabilir biçimde çalıştırılmasını kolaylaştırır. |
+- [x] Docker imajı ve kalıcı MySQL verili Docker Compose kurulumu
 
 ### Daha sonra değerlendirilecek geliştirmeler
 
