@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="tr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kayıt ol | PayGuard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<header class="bg-primary text-white py-3">
+    <div class="container d-flex justify-content-between align-items-center">
+        <strong>PayGuard</strong>
+        <a th:href="@{/login}" class="btn btn-outline-light btn-sm">Giriş yap</a>
+    </div>
+</header>
+
+<main class="container py-5">
+    <div class="card shadow-sm mx-auto" style="max-width: 480px;">
+        <div class="card-body p-4">
+            <h1 class="h3 mb-2">Hesabını oluştur</h1>
+            <p class="text-muted mb-4">Sanal kartlarını ve işlemlerini tek yerden yönet.</p>
+
+            <div th:if="${registrationSuccess}" class="alert alert-success" role="status">
+                <p class="mb-2">Hesabınız oluşturuldu. Giriş yapabilirsiniz.</p>
+                <a th:href="@{/login}" class="btn btn-primary">Giriş yap</a>
+            </div>
+
+            <form th:unless="${registrationSuccess}" th:action="@{/register}"
+                  th:object="${request}" method="post">
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <label for="firstName" class="form-label">Ad</label>
+                        <input id="firstName" type="text" class="form-control"
+                               th:field="*{firstName}" maxlength="50" autocomplete="given-name" required>
+                        <div class="text-danger small" role="alert"
+                             th:if="${#fields.hasErrors('firstName')}" th:errors="*{firstName}"></div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label for="lastName" class="form-label">Soyad</label>
+                        <input id="lastName" type="text" class="form-control"
+                               th:field="*{lastName}" maxlength="50" autocomplete="family-name" required>
+                        <div class="text-danger small" role="alert"
+                             th:if="${#fields.hasErrors('lastName')}" th:errors="*{lastName}"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">E-posta</label>
+                    <input id="email" type="email" class="form-control"
+                           th:field="*{email}" maxlength="150" autocomplete="email" required>
+                    <div class="text-danger small" role="alert"
+                         th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></div>
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="form-label">Şifre</label>
+                    <!-- Şifreye th:field veya value bağlamıyoruz; hatada boş kalır. -->
+                    <input id="password" name="password" type="password" class="form-control"
+                           minlength="12" maxlength="72" autocomplete="new-password"
+                           aria-describedby="passwordHelp" required>
+                    <div id="passwordHelp" class="form-text">
+                        12–72 karakter kullanın. UTF-8 olarak en fazla 72 byte olabilir.
+                    </div>
+                    <div class="text-danger small" role="alert"
+                         th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Hesap oluştur</button>
+                <p class="text-muted text-center small mt-4 mb-0">
+                    Hesabın var mı? <a th:href="@{/login}">Giriş yap</a>
+                </p>
+            </form>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>

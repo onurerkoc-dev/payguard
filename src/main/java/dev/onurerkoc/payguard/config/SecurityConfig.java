@@ -30,11 +30,15 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register")
                         .permitAll()
+                        .requestMatchers("/login", "/register")
+                        .permitAll()
                         .anyRequest()
                         .authenticated()
                 )
 
-                .formLogin(Customizer.withDefaults())
+                .formLogin(form -> form
+                        .loginPage("/login")
+                        .permitAll())
                 .httpBasic(Customizer.withDefaults());
 
         // Provider bean'i Spring tarafından otomatik bağlanır.

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="tr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Giriş yap | PayGuard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<header class="bg-primary text-white py-3">
+    <div class="container">
+        <strong>PayGuard</strong>
+    </div>
+</header>
+
+<main class="container py-5">
+    <div class="card shadow-sm mx-auto" style="max-width: 480px;">
+        <div class="card-body p-4">
+            <h1 class="h3 mb-2">Giriş yap</h1>
+            <p class="text-muted mb-4">Kartlarını ve işlemlerini yönetmek için giriş yap.</p>
+
+            <div th:if="${param.error}" class="alert alert-danger" role="alert">
+                E-posta veya şifre hatalı.
+            </div>
+            <div th:if="${param.logout}" class="alert alert-success" role="status">
+                Başarıyla çıkış yaptınız.
+            </div>
+
+            <form th:action="@{/login}" method="post">
+                <div class="mb-3">
+                    <label for="email" class="form-label">E-posta</label>
+                    <!-- Spring Security e-postayı username parametresinden okur. -->
+                    <input id="email" name="username" type="email" class="form-control"
+                           autocomplete="username" maxlength="150" required>
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="form-label">Şifre</label>
+                    <input id="password" name="password" type="password" class="form-control"
+                           autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Giriş yap</button>
+            </form>
+
+            <p class="text-muted text-center small mt-4 mb-0">
+                Hesabın yok mu? <a th:href="@{/register}">Kayıt ol</a>
+            </p>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>
