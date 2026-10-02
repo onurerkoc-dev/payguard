@@ -4,7 +4,7 @@
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![Tests](https://img.shields.io/badge/tests-215%20passing-brightgreen)](#test-stratejisi)
+[![Tests](https://img.shields.io/badge/tests-238%20passing-brightgreen)](#test-stratejisi)
 [![CI](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml/badge.svg)](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml)
 [![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 
@@ -440,6 +440,26 @@ Başlangıç logunda aşağıdaki satır görülmelidir:
 The following 1 profile is active: "local"
 ```
 
+### Tarayıcıdan kullanıcı kaydı
+
+Giriş ekranı `http://localhost:8080/login` adresindedir. E-posta ve şifreyle
+giriş yapabilir veya **Hesabın yok mu? Kayıt ol** bağlantısıyla kayıt
+formunu açabilirsiniz. Hatalı girişte genel hata mesajı, çıkıştan sonra
+başarı mesajı gösterilir.
+
+`http://localhost:8080/register` adresinde ad, soyad, e-posta ve şifreyle
+normal kullanıcı hesabı oluşturabilirsiniz. Şifre 12–72 karakter ve UTF-8
+olarak en fazla 72 byte olmalıdır. Başarılı kayıttan sonra **Giriş yap**
+bağlantısını kullanın; kayıt işlemi otomatik giriş yapmaz.
+
+Form mevcut kayıt servisini kullanır; müşteri profili ve `USER` hesabı
+birlikte oluşturulur, şifre BCrypt hash olarak saklanır. Formdan rol veya
+müşteri ID'si seçilemez. Kullanılan e-posta ve geçersiz bilgiler formda
+gösterilir; hata durumunda şifre alanı boş bırakılır.
+
+`/register` herkese açıktır, ancak POST isteği CSRF token gerektirir.
+Kart işlemleri ve yönetici panelindeki mevcut erişim kontrolleri korunur.
+
 ### İlk admin hesabının kurulumu
 
 Repodaki `src/main/resources/application.properties` içinde admin kurulumu
@@ -540,7 +560,7 @@ komutundan `Ctrl+C` ile çıkmak container'ları durdurmaz.
 
 Dockerfile, Maven Wrapper ile Java 21 üzerinde JAR üretir; son imajda
 JRE ve uygulama bulunur. İmaj build edilirken testler çalıştırılmaz;
-215 testten oluşan suite ayrı test komutuyla ve GitHub CI'da doğrulanır.
+238 testten oluşan suite ayrı test komutuyla ve GitHub CI'da doğrulanır.
 Compose, MySQL 8.4 hazır olana kadar uygulamayı bekletir. MySQL'de uygulama
 kullanıcısıyla `SELECT 1` sorgusu başarılı olunca PayGuard başlatılır.
 
@@ -579,7 +599,7 @@ değiştirmez. Bunun için veritabanındaki hesabın şifresi de güncellenmelid
 
 ## Test stratejisi
 
-PayGuard'ın güncel test tabanı **215 başarılı testten** oluşur.
+PayGuard'ın güncel test tabanı **238 başarılı testten** oluşur.
 
 ```mermaid
 flowchart TD
@@ -628,7 +648,7 @@ image'ı yeniden indirmez.
 Beklenen güncel sonuç:
 
 ```text
-Tests run: 215, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 238, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -725,6 +745,7 @@ Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebile
 - [x] Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli
 - [x] Güvenli ilk admin kurulumu ve müşteri listeli yönetici paneli
 - [x] Docker imajı ve kalıcı MySQL verili Docker Compose kurulumu
+- [x] CSRF korumalı tarayıcı kayıt formu ve giriş akışı
 
 ### Daha sonra değerlendirilecek geliştirmeler
 
