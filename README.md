@@ -1,775 +1,230 @@
 # PayGuard
 
 > Sanal kart yönetimi ve ödeme simülasyonu sunan Spring Boot uygulaması; REST API ve Spring MVC kullanıcı paneli içerir.
+
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![Tests](https://img.shields.io/badge/tests-238%20passing-brightgreen)](#test-stratejisi)
+[![Tests](https://img.shields.io/badge/tests-238%20passing-brightgreen)](#testler)
 [![CI](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml/badge.svg)](https://github.com/onurerkoc-dev/payguard/actions/workflows/ci.yml)
 [![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
 
-PayGuard; müşteri hesaplarını, sanal kartları ve kart işlemlerini yöneten; ödeme taleplerini kart durumu, bakiye ve kullanım limitlerine göre değerlendiren bir backend projesidir.
+PayGuard; kullanıcıların sanal kart oluşturduğu, örnek bakiye yüklediği ve kart durumu, bakiye, limit ve ödeme izinlerine göre ödeme simüle ettiği bir portföy projesidir. Tarayıcı paneli ve REST API aynı servis katmanını kullanır.
 
-Projenin odağı yalnızca CRUD endpointleri oluşturmak değildir. Aynı ödeme isteğinin iki kez işlenmemesi, eş zamanlı bakiye güncellemelerinde veri kaybının engellenmesi, kullanıcının yalnızca kendi verisine erişebilmesi ve kritik iş kurallarının otomatik testlerle doğrulanması hedeflenmiştir.
+**Odak:** aynı ödemenin iki kez işlenmesini önlemek, eş zamanlı bakiye güncellemelerini korumak ve kullanıcıların yalnızca kendi verilerine erişmesini sağlamak.
 
-## İçindekiler
+[Ekranlar](#ekran-görüntüleri) · [Kullanım senaryosu](#kullanım-senaryosu) · [Mimari](#mimari) · [Kurulum](#hızlı-başlangıç) · [Testler](#testler)
 
-- [Öne çıkan özellikler](#öne-çıkan-özellikler)
-- [Mimari](#mimari)
-- [Veri modeli](#veri-modeli)
-- [Ödeme yetkilendirme akışı](#ödeme-yetkilendirme-akışı)
-- [Güvenlik modeli](#güvenlik-modeli)
-- [API endpointleri](#api-endpointleri)
-- [API dokümantasyonu](#api-dokümantasyonu)
-- [Teknoloji yığını](#teknoloji-yığını)
-- [Ortam profilleri](#ortam-profilleri)
-- [Projeyi çalıştırma](#projeyi-çalıştırma)
-- [Test stratejisi](#test-stratejisi)
-- [Proje yapısı](#proje-yapısı)
-- [Tasarım kararları](#tasarım-kararları)
-- [Yol haritası](#yol-haritası)
-- [Proje durumu](#proje-durumu)
-- [Geliştirici](#geliştirici)
+## Öne çıkan mühendislik kararları
 
-## Öne çıkan özellikler
-
-### Kullanıcı ve müşteri yönetimi
-
-- Kullanıcı kaydı ve e-posta normalizasyonu
-- BCrypt ile güvenli şifre hashleme
-- Benzersiz e-posta kontrolü
-- Müşteri bilgilerini görüntüleme, güncelleme ve silme
-- Müşteri silindiğinde bağlı kullanıcı hesabını ve oturumu güvenli biçimde sonlandırma
-- Eş zamanlı kayıt denemelerinde veritabanı kısıtını anlamlı API hatasına dönüştürme
-
-### Sanal kart yönetimi
-
-- Müşteriye bağlı sanal kart oluşturma
-- Kartları listeleme ve kart numarasını özet yanıtlarda maskeleme
-- Bakiye yükleme
-- Kartı dondurma ve yeniden kullanıma açma
-- Tek işlem ve günlük harcama limitlerini güncelleme
-- İnternet ve yurt dışı ödeme izinlerini yönetme
-- Sayfalama destekli işlem geçmişi
-
-### Ödeme güvenliği
-
-- Kartın dondurulma ve son kullanma tarihi kontrolü
-- Yetersiz bakiye kontrolü
-- Tek işlem ve günlük limit kontrolü
-- İnternet ve yurt dışı işlem izinleri
-- Onaylanan ve reddedilen işlemleri nedenleriyle kaydetme
-- `Idempotency-Key` ile güvenli tekrar denemeleri
-- İşlem anındaki kalan bakiyeyi saklayarak tekrar isteğinde aynı cevabı üretme
-- JPA `@Version` optimistic locking ile eş zamanlı bakiye güncellemelerini koruma
-
-## Mimari
-
-PayGuard, sorumlulukları birbirinden ayıran katmanlı bir mimari kullanır.
-
-```mermaid
-flowchart TD
-    Client["Tarayıcı / REST istemcisi"] --> Security["Spring Security Filter Chain"]
-    Security --> Controller["MVC ve REST controller'ları"]
-    Controller --> Service["Service + İş Kuralları"]
-    Service --> Policy["Yetkilendirme Politikaları"]
-    Service --> Repository["Spring Data JPA Repository"]
-    Repository --> Database[("MySQL")]
-```
-
-| Katman | Sorumluluk |
-|---|---|
-| Controller | HTTP isteğini alır, doğrulanmış DTO'yu servise iletir ve HTTP cevabını üretir. |
-| DTO | API'ye giren ve API'den çıkan verinin sözleşmesini tanımlar. |
-| Service | Ödeme, limit, sahiplik ve hesap yaşam döngüsü gibi iş kurallarını uygular. |
-| Security | Kimlik doğrulama, rol ve kaynak sahipliği kontrollerini gerçekleştirir. |
-| Repository | Entity'lerin MySQL üzerinde kalıcı hâle getirilmesini sağlar. |
-| Exception Handler | İş ve doğrulama hatalarını anlamlı HTTP cevaplarına dönüştürür. |
-
-## Veri modeli
-
-```mermaid
-erDiagram
-    CUSTOMER ||--o| USER_ACCOUNT : "hesaba sahiptir"
-    CUSTOMER ||--o{ VIRTUAL_CARD : "kartlara sahiptir"
-    VIRTUAL_CARD ||--o{ CARD_TRANSACTION : "işlemleri içerir"
-
-    CUSTOMER {
-        Long id PK
-        String firstName
-        String lastName
-        String email UK
-    }
-
-    USER_ACCOUNT {
-        Long id PK
-        String email UK
-        String passwordHash
-        String role
-        boolean enabled
-        Long customerId FK
-    }
-
-    VIRTUAL_CARD {
-        Long id PK
-        Long version
-        String cardNumber UK
-        BigDecimal balance
-        BigDecimal singleTransactionLimit
-        BigDecimal dailyLimit
-        boolean frozen
-        Long customerId FK
-    }
-
-    CARD_TRANSACTION {
-        Long id PK
-        String idempotencyKey UK
-        String type
-        String status
-        String declineReason
-        BigDecimal amount
-        BigDecimal balanceAfterTransaction
-        Instant createdAt
-        Long cardId FK
-    }
-```
-
-## Ödeme yetkilendirme akışı
-
-```mermaid
-flowchart TD
-    Request["Ödeme isteği + Idempotency-Key"] --> Existing{"Anahtar daha önce kullanıldı mı?"}
-    Existing -- Evet --> Same{"İstek içeriği aynı mı?"}
-    Same -- Evet --> Replay["Kaydedilmiş sonucu değişiklik yapmadan döndür"]
-    Same -- Hayır --> Conflict["409 Idempotency Conflict"]
-    Existing -- Hayır --> Rules{"Kart, izin, limit ve bakiye kontrolleri"}
-    Rules -- Başarılı --> Approved["Bakiyeyi düşür ve APPROVED kaydet"]
-    Rules -- Başarısız --> Declined["Bakiyeyi değiştirmeden DECLINED kaydet"]
-```
-
-Bir ödeme aşağıdaki nedenlerle reddedilebilir:
-
-- `CARD_FROZEN`
-- `CARD_EXPIRED`
-- `INSUFFICIENT_BALANCE`
-- `SINGLE_TRANSACTION_LIMIT_EXCEEDED`
-- `DAILY_LIMIT_EXCEEDED`
-- `ONLINE_TRANSACTIONS_DISABLED`
-- `INTERNATIONAL_TRANSACTIONS_DISABLED`
-
-## Güvenlik modeli
-
-PayGuard, Spring Security üzerinde session tabanlı kimlik doğrulama kullanır. Geliştirme aşamasında form login ve HTTP Basic desteği aktiftir.
-
-```mermaid
-flowchart TD
-    Anonymous["Anonim kullanıcı"] --> Register["Kayıt endpointi"]
-    User["USER"] --> Own["Yalnızca kendi müşterisi ve kartları"]
-    Admin["ADMIN"] --> Management["Müşteri oluşturma ve listeleme"]
-```
-
-| İşlem | Anonim | USER | ADMIN |
-|---|:---:|:---:|:---:|
-| Kullanıcı kaydı | ✅ | ✅ | ✅ |
-| Kendi müşteri profilini görüntüleme | ❌ | ✅ | Sahiplik kuralına bağlı |
-| Kendi profilini güncelleme veya silme | ❌ | ✅ | Sahiplik kuralına bağlı |
-| Kendi sanal kartlarını yönetme | ❌ | ✅ | Sahiplik kuralına bağlı |
-| Müşteri oluşturma ve tüm müşterileri listeleme | ❌ | ❌ | ✅ |
-
-Uygulanan güvenlik önlemleri:
-
-- Şifreler açık metin olarak değil, BCrypt hash olarak saklanır.
-- Kullanıcı kayıt sırasında rol seçemez; yeni hesap her zaman `USER` olur.
-- `@EnableMethodSecurity` ve `@PreAuthorize` ile servis katmanı korunur.
-- `CustomerAccessPolicy`, giriş yapan kullanıcının hedef müşteri kaydının sahibi olduğunu doğrular.
-- CSRF koruması açık bırakılmıştır.
-- Durum değiştiren browser isteklerinin geçerli CSRF token taşıması gerekir.
-- Başarılı hesap silme işleminden sonra session ve SecurityContext sonlandırılır.
-
-> `permitAll`, CSRF kontrolünü kapatmaz. Bu nedenle kayıt endpointi herkese açık olsa da browser üzerinden yapılan `POST`, `PUT`, `PATCH` ve `DELETE` isteklerinde CSRF token gereklidir.
-
-## API endpointleri
-
-### Kimlik doğrulama
-
-| Metot | Endpoint | Açıklama | Yetki |
-|---|---|---|---|
-| `POST` | `/api/auth/register` | Müşteri profili ve kullanıcı hesabı oluşturur. | Herkese açık |
-| `POST` | `/login` | Spring Security form login işlemini gerçekleştirir. | Herkese açık |
-| `POST` | `/logout` | Oturumu ve güvenlik bağlamını sonlandırır. | Giriş yapmış kullanıcı |
-
-### Müşteriler
-
-| Metot | Endpoint | Açıklama | Yetki |
-|---|---|---|---|
-| `POST` | `/api/customers` | Müşteri oluşturur. | `ADMIN` |
-| `GET` | `/api/customers` | Tüm müşterileri listeler. | `ADMIN` |
-| `GET` | `/api/customers/{id}` | Müşteri profilini getirir. | Kayıt sahibi |
-| `PUT` | `/api/customers/{id}` | Ad ve soyadı günceller. | Kayıt sahibi |
-| `DELETE` | `/api/customers/{id}` | Uygun müşteri ve bağlı hesabı siler, oturumu kapatır. | Kayıt sahibi |
-
-### Sanal kartlar ve ödemeler
-
-| Metot | Endpoint | Açıklama |
+| Karar | Çözdüğü problem | Uygulama / doğrulama |
 |---|---|---|
-| `POST` | `/api/customers/{customerId}/cards` | Sanal kart oluşturur. |
-| `GET` | `/api/customers/{customerId}/cards` | Müşterinin kartlarını listeler. |
-| `GET` | `/api/customers/{customerId}/cards/{cardId}` | Kart detayını getirir. |
-| `POST` | `/api/customers/{customerId}/cards/{cardId}/balance` | Karta bakiye yükler. |
-| `PATCH` | `/api/customers/{customerId}/cards/{cardId}/freeze` | Kartı dondurur. |
-| `PATCH` | `/api/customers/{customerId}/cards/{cardId}/unfreeze` | Kartı yeniden kullanıma açar. |
-| `PATCH` | `/api/customers/{customerId}/cards/{cardId}/limits` | Kart limitlerini günceller. |
-| `PATCH` | `/api/customers/{customerId}/cards/{cardId}/payment-settings` | İnternet ve yurt dışı ödeme izinlerini günceller. |
-| `POST` | `/api/customers/{customerId}/cards/{cardId}/payments` | Ödeme isteğini yetkilendirir. |
-| `GET` | `/api/customers/{customerId}/cards/{cardId}/transactions?page=0&size=10` | İşlem geçmişini sayfalı getirir. |
+| **Idempotency** | Ağ kesintisinden sonra aynı ödeme tekrar gönderildiğinde ikinci kez bakiye düşmesi | `Idempotency-Key`, unique constraint ve istek eşleşmesi; tekrar isteğinde aynı işlem ID'si, karar ve kalan bakiye; farklı gövdede `409` |
+| **Optimistic locking** | İki işlemin aynı eski bakiyeyi okuyup birbirinin güncellemesini ezmesi | JPA `@Version`; eski sürümle yazma reddedilir, API `409` döner. [Gerçek MySQL testi](src/test/java/dev/onurerkoc/payguard/repository/VirtualCardOptimisticLockingIntegrationTest.java) |
+| **Transactional tutarlılık** | Bakiye değişirken işlem kaydının yazılamaması veya kayıt sırasında yarım hesap oluşması | `@Transactional` ile bakiye/işlem ve müşteri/hesap değişiklikleri aynı transaction içinde; DB kısıtları ve rollback |
+| **Servis katmanında yetkilendirme** | Başka müşterinin ID'sini kullanarak kartına erişme | `@PreAuthorize` ve `CustomerAccessPolicy`; MVC ve REST aynı sahiplik kontrolünden geçer. [Yetki testleri](src/test/java/dev/onurerkoc/payguard/security/VirtualCardServiceAuthorizationTest.java) |
+| **Gerçek veritabanıyla test ve sürümlü şema** | Mock testlerin MySQL kısıtlarını kaçırması, ortamlarda şemanın farklılaşması | Testcontainers + MySQL 8.4, unique constraint ve stale-version testleri; Flyway migration'ları ve Hibernate `validate` |
 
-Bu bölümdeki bütün kart endpointleri giriş yapan kullanıcının yalnızca kendi `customerId` değeri için çalışır.
+## Neler yapılabilir?
 
-### Örnek ödeme isteği
-
-Ödeme endpointi zorunlu bir `Idempotency-Key` header'ı bekler:
-
-```http
-POST /api/customers/7/cards/12/payments HTTP/1.1
-Idempotency-Key: payment-2026-0001
-Content-Type: application/json
-```
-
-```json
-{
-  "amount": 249.90,
-  "merchantName": "Example Store",
-  "onlineTransaction": true,
-  "internationalTransaction": false
-}
-```
-
-## API dokümantasyonu
-
-PayGuard endpointleri, request/response modelleri ve validation kuralları
-springdoc-openapi tarafından otomatik olarak OpenAPI 3 formatında belgelenir.
-
-Uygulama `local` profiliyle çalışırken dokümantasyona aşağıdaki adreslerden
-erişilebilir:
-
-| Kaynak | Adres |
+| Alan | Özellikler |
 |---|---|
-| Swagger UI | `http://localhost:8080/swagger-ui.html` |
-| OpenAPI JSON | `http://localhost:8080/v3/api-docs` |
-| OpenAPI YAML | `http://localhost:8080/v3/api-docs.yaml` |
+| Hesap | Kayıt, e-posta ile giriş, güvenli çıkış; müşteri profili için REST işlemleri |
+| Sanal kart | Kart oluşturma, maskelenmiş liste, bakiye yükleme, dondurma/açma |
+| Ödeme | Tek işlem/günlük limit, internet ve yurt dışı izinleri, ret nedenleri |
+| İşlem geçmişi | Onaylanan ve reddedilen işlemler; API'de sayfalama, panelde son 10 işlem |
+| Yönetici | İlk admin kurulumu ve müşteri listesi |
 
-Swagger UI üzerinden korunan GET endpointlerini denemek için sağ üstteki
-`Authorize` butonu kullanılabilir. Kullanıcı adı olarak kayıtlı e-posta,
-şifre olarak hesabın gerçek şifresi girilir.
+## Ekran görüntüleri
 
-Swagger, HTTP Basic bilgisini isteklerde `Authorization` header'ı ile gönderir.
-Bu değer şifrelenmiş değil, Base64 kodlanmış olduğundan gerçek ortamlarda
-uygulama mutlaka HTTPS üzerinden çalıştırılmalıdır.
+Görüntüler gerçek uygulamadan, ayrı bir demo veritabanı ve örnek hesapla alınmıştır.
 
-OpenAPI entegrasyonu uygulamanın güvenlik kurallarını devre dışı bırakmaz.
-Müşteri ve kart endpointlerinde kimlik doğrulama ve sahiplik kontrolü devam
-eder. Durum değiştiren `POST`, `PUT`, `PATCH` ve `DELETE` isteklerinde CSRF
-koruması açık kalır.
+**Kullanıcı paneli** — sanal kartlar, bakiye ve işlem geçmişine erişim.
+
+![PayGuard kullanıcı panelinde demo kartlar](docs/images/dashboard.jpg)
+
+**Kart detayı** — limitler, ödeme izinleri ve gerekçeleriyle işlem sonuçları.
+
+![PayGuard kart detayında bakiye, limitler ve işlem geçmişi](docs/images/card-detail.jpg)
+
+<details>
+<summary>Giriş, kayıt ve limit ekranlarını göster</summary>
+
+### Giriş
+
+![PayGuard giriş ve kayıt bağlantısı](docs/images/login.jpg)
+
+### Kayıt
+
+![PayGuard kullanıcı kayıt formu](docs/images/register.jpg)
+
+### Kart limitleri
+
+![PayGuard kart limiti düzenleme formu](docs/images/card-limits.jpg)
+
+</details>
+
+## Kullanım senaryosu
+
+1. `/register` üzerinden normal kullanıcı oluşturun ve `/login` adresinden giriş yapın.
+2. **Yeni sanal kart** ile tek işlem limiti `500`, günlük limiti `1.000` olan bir kart oluşturun.
+3. Kart detayından **Örnek bakiye yükle** ile `1.000` yükleyin.
+4. **Ödeme simüle et** ekranında aşağıdaki işlemleri deneyin.
+
+| Adım | Beklenen sonuç | Kalan bakiye |
+|---|---|---:|
+| `250` tutarında, izin verilen ödeme | Onaylandı | `750` |
+| `600` tutarında ödeme | Tek işlem limiti nedeniyle reddedildi | `750` |
+| Kartı dondurup `10` tutarında ödeme | Kart dondurulmuş olduğu için reddedildi | `750` |
+| Kartı yeniden kullanıma açma | Kart aktif; önceki işlemler geçmişte kalır | `750` |
+
+API üzerinden aynı ödeme gövdesini aynı `Idempotency-Key` ile yeniden gönderdiğinizde aynı işlem ID'si, karar ve işlem anındaki kalan bakiye döner; bakiye tekrar düşmez. Aynı anahtar farklı ödeme bilgileriyle gönderilirse `409 Conflict` oluşur. [Endpointler ve örnek istek →](docs/api.md)
 
 ## Teknoloji yığını
 
 | Alan | Teknoloji |
 |---|---|
-| Dil | Java 21 |
-| Framework | Spring Boot 4.1.1 |
-| Web | Spring Web MVC (REST API), Thymeleaf, Bootstrap |
-| API dokümantasyonu | OpenAPI 3, Swagger UI, springdoc-openapi |
-| Güvenlik | Spring Security, session authentication, BCrypt, CSRF |
-| Persistence | Spring Data JPA, Hibernate |
-| Veritabanı migration | Flyway |
-| Veritabanı | MySQL |
-| Doğrulama | Jakarta Validation |
-| Test | JUnit 5, Mockito, MockMvc, Spring Security Test |
-| Entegrasyon testi | Testcontainers + MySQL 8.4 |
-| Yapılandırma | Spring Profiles (`local`, `test`, `prod`) |
-| Build | Maven Wrapper |
-| CI | GitHub Actions |
+| Backend | Java 21, Spring Boot, Spring MVC, Jakarta Validation |
+| Arayüz | Thymeleaf, Bootstrap |
+| Güvenlik | Spring Security, session, BCrypt, CSRF |
+| Veritabanı | MySQL 8.4, Spring Data JPA, Flyway |
+| Test ve teslim | JUnit, Mockito, MockMvc, Testcontainers, GitHub Actions, Docker Compose |
+| API dokümantasyonu | OpenAPI 3, Swagger UI |
 
-## Ortam profilleri
+## Mimari
 
-PayGuard, aynı uygulama kodunu farklı ortamlarda güvenli biçimde çalıştırmak
-için Spring Profiles kullanır. Ortak ayarlar `application.properties`
-dosyasında tutulur; veritabanı bağlantısı gibi ortama göre değişen değerler
-ilgili profil dosyasından alınır.
+Controller'lar HTTP ve form işlemlerini, servisler iş kurallarını, repository'ler veritabanı erişimini yönetir. API ve panel aynı kuralları uygular.
+
+```mermaid
+flowchart LR
+    UI["Tarayıcı paneli"] --> SEC["Spring Security"]
+    API["REST istemcisi"] --> SEC
+    SEC --> WEB["MVC / REST Controller"]
+    WEB --> SVC["Service<br/>İş kuralları + transaction"]
+    SVC --> REPO["JPA Repository"]
+    REPO --> DB[("MySQL")]
+
+    classDef client fill:#eff6ff,stroke:#2563eb,color:#172554
+    classDef security fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+    classDef application fill:#f0fdf4,stroke:#16a34a,color:#14532d
+    classDef storage fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
+    class UI,API client
+    class SEC security
+    class WEB,SVC application
+    class REPO,DB storage
+```
+
+Temel ilişkiler: normal kullanıcı bir müşteri profiline bağlıdır; adminin müşteri ilişkisi yoktur. Kartlar müşteriye, işlemler karta bağlıdır.
+
+```mermaid
+erDiagram
+    CUSTOMER ||--o| USER_ACCOUNT : "hesap"
+    CUSTOMER ||--o{ VIRTUAL_CARD : "kartlar"
+    VIRTUAL_CARD ||--o{ CARD_TRANSACTION : "islemler"
+```
+
+[Veri modeli, güvenlik yetkileri ve tasarım kararları →](docs/architecture.md)
+
+## Ödeme nasıl değerlendirilir?
 
 ```mermaid
 flowchart TD
-    Common["Ortak ayarlar"] --> Local["local: Yerel MySQL"]
-    Common --> Test["test: Testcontainers MySQL"]
-    Common --> Prod["prod: Sunucu değişkenleri"]
+    REQUEST["Ödeme isteği + Idempotency-Key"] --> EXISTS{"Anahtar kayıtlı mı?"}
+    EXISTS -->|Evet| MATCH{"Ödeme bilgileri aynı mı?"}
+    MATCH -->|Evet| REPLAY["Önceki sonucu döndür<br/>Bakiyeyi değiştirme"]
+    MATCH -->|Hayır| CONFLICT["409 Conflict"]
+    EXISTS -->|Hayır| RULES{"Kart, izin, limit ve bakiye uygun mu?"}
+    RULES -->|Evet| APPROVED["APPROVED<br/>Bakiyeyi düşür ve işlemi kaydet"]
+    RULES -->|Hayır| DECLINED["DECLINED<br/>Ret nedenini kaydet; bakiye aynı kalır"]
+
+    classDef decision fill:#eff6ff,stroke:#2563eb,color:#172554
+    classDef approved fill:#f0fdf4,stroke:#16a34a,color:#14532d
+    classDef rejected fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+    class REQUEST,EXISTS,MATCH,RULES decision
+    class APPROVED,REPLAY approved
+    class CONFLICT,DECLINED rejected
 ```
 
-| Profil | Yapılandırma kaynağı | Kullanım amacı |
-|---|---|---|
-| `local` | `application-local.properties` | Geliştiricinin bilgisayarındaki MySQL veritabanı |
-| `test` | `src/test/resources/application-test.properties` ve `@ServiceConnection` | Docker üzerinde geçici ve izole Testcontainers MySQL |
-| `prod` | `application-prod.properties` ve environment variable'lar | Sunucu veya hosting ortamındaki production veritabanı |
+- Kart dondurulmuşsa veya süresi dolmuşsa ödeme reddedilir.
+- Bakiye, tek işlem/günlük limit ve internet/yurt dışı izinleri kontrol edilir.
+- İşlem sonucuyla birlikte o andaki bakiye saklanır; tekrar isteğinde aynı işlem ID'si, karar ve bakiye döner.
+- JPA `@Version`, eş zamanlı kart güncellemelerinde kayıp güncellemeyi engeller.
 
-Ortak yapılandırmada Hibernate yalnızca Flyway tarafından oluşturulan şemayı
-doğrular:
+## Güvenlik
 
-```properties
-spring.jpa.hibernate.ddl-auto=validate
-spring.jpa.open-in-view=false
-```
+- Yeni kayıt her zaman `USER` olur; formdan rol veya müşteri ID'si belirlenemez.
+- Şifreler BCrypt hash olarak saklanır; form hatalarında geri gösterilmez.
+- Servislerde rol ve müşteri sahipliği denetlenir; URL'deki ID'yi değiştirmek başka hesaba erişim sağlamaz.
+- Form işlemlerinde CSRF koruması açıktır; çıkış POST isteğiyle yapılır.
+- Admin kurulumu özel yerel dosyada yapılır; `.env` ve bu dosya Git'e/imaja eklenmez.
 
-Production profili bağlantı bilgilerini kaynak koddan değil aşağıdaki
-environment variable'lardan bekler:
+## Hızlı başlangıç
 
-```text
-PAYGUARD_DB_URL
-PAYGUARD_DB_USERNAME
-PAYGUARD_DB_PASSWORD
-PORT
-```
-
-Projede bilerek varsayılan profil tanımlanmamıştır. Böylece profil seçilmeden
-başlatılan bir deployment'ın yanlışlıkla yerel veritabanına bağlanması yerine
-uygulama güvenli biçimde bağlantı hatası vererek durur.
-
-## Projeyi çalıştırma
-
-### Gereksinimler
-
-- Java 21
-- Git
-- MySQL 8+
-- Testcontainers testleri için çalışan Docker Desktop
-
-Kurulumları doğrulayın:
-
-```powershell
-java -version
-docker --version
-docker info
-.\mvnw.cmd -version
-```
-
-Maven çıktısındaki Java sürümü de `21` olmalıdır.
-
-### 1. Repoyu klonlayın
+Docker Desktop ve Git gerekir. İlk çalıştırmada imaj içinde JAR üretilir; bilgisayarda ayrıca Java/MySQL kurulması gerekmez.
 
 ```bash
 git clone https://github.com/onurerkoc-dev/payguard.git
 cd payguard
 ```
 
-### 2. MySQL veritabanını hazırlayın
-
-```sql
-CREATE DATABASE payguard
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
-
-CREATE USER 'payguard_user'@'localhost'
-    IDENTIFIED BY 'guvenli-bir-sifre';
-
-GRANT ALL PRIVILEGES ON payguard.*
-    TO 'payguard_user'@'localhost';
-
-FLUSH PRIVILEGES;
-```
-
-### 3. Yerel ortam değişkenlerini tanımlayın
-
-Geçerli PowerShell oturumunda veritabanı şifresini tanımlayın ve `local`
-profilini etkinleştirin:
-
-```powershell
-$env:PAYGUARD_DB_PASSWORD="guvenli-bir-sifre"
-$env:SPRING_PROFILES_ACTIVE="local"
-```
-
-macOS/Linux:
-
-```bash
-export PAYGUARD_DB_PASSWORD="guvenli-bir-sifre"
-export SPRING_PROFILES_ACTIVE="local"
-```
-
-Environment variable değerleri yalnızca o terminal oturumu için geçerlidir.
-Şifreyi herhangi bir `application*.properties` dosyasına veya Git geçmişine
-eklemeyin.
-
-### 4. Veritabanı migration'ları
-
-Uygulama başlatıldığında Flyway, `src/main/resources/db/migration`
-altındaki migration dosyalarını sürüm sırasına göre otomatik olarak çalıştırır:
-
-```text
-V1__initial_schema.sql
-V2__add_payment_transaction_details.sql
-V3__create_user_accounts.sql
-```
-
-- `V1`, temel müşteri, sanal kart ve işlem tablolarını oluşturur.
-- `V2`, ödeme işleminin internet, yurt dışı ve işlem sonrası bakiye bilgilerini ekler.
-- `V3`, Spring Security kullanıcı hesapları tablosunu oluşturur.
-- Uygulanan migration'lar `flyway_schema_history` tablosunda kayıt altında tutulur.
-
-Tabloları elle oluşturmak gerekmez. Hibernate şemayı değiştirmez;
-`spring.jpa.hibernate.ddl-auto=validate` ayarıyla entity ve tablo yapılarının
-uyumlu olduğunu doğrular.
-
-Varsayılan yapılandırmada `baseline-on-migrate` açık değildir. Böylece Flyway
-geçmişi bulunmayan dolu bir veritabanının yanlışlıkla sahiplenilmesi engellenir.
-
-### 5. Uygulamayı başlatın
-
-Windows:
-
-```powershell
-.\mvnw.cmd spring-boot:run
-```
-
-macOS/Linux:
-
-```bash
-./mvnw spring-boot:run
-```
-
-Uygulama varsayılan olarak `http://localhost:8080` adresinde çalışır.
-Başlangıç logunda aşağıdaki satır görülmelidir:
-
-```text
-The following 1 profile is active: "local"
-```
-
-### Tarayıcıdan kullanıcı kaydı
-
-Giriş ekranı `http://localhost:8080/login` adresindedir. E-posta ve şifreyle
-giriş yapabilir veya **Hesabın yok mu? Kayıt ol** bağlantısıyla kayıt
-formunu açabilirsiniz. Hatalı girişte genel hata mesajı, çıkıştan sonra
-başarı mesajı gösterilir.
-
-`http://localhost:8080/register` adresinde ad, soyad, e-posta ve şifreyle
-normal kullanıcı hesabı oluşturabilirsiniz. Şifre 12–72 karakter ve UTF-8
-olarak en fazla 72 byte olmalıdır. Başarılı kayıttan sonra **Giriş yap**
-bağlantısını kullanın; kayıt işlemi otomatik giriş yapmaz.
-
-Form mevcut kayıt servisini kullanır; müşteri profili ve `USER` hesabı
-birlikte oluşturulur, şifre BCrypt hash olarak saklanır. Formdan rol veya
-müşteri ID'si seçilemez. Kullanılan e-posta ve geçersiz bilgiler formda
-gösterilir; hata durumunda şifre alanı boş bırakılır.
-
-`/register` herkese açıktır, ancak POST isteği CSRF token gerektirir.
-Kart işlemleri ve yönetici panelindeki mevcut erişim kontrolleri korunur.
-
-### İlk admin hesabının kurulumu
-
-Repodaki `src/main/resources/application.properties` içinde admin kurulumu
-kapalı, e-posta ve şifre alanları boştur. Bu dosyaya gerçek hesap bilgilerini
-yazmayın. Kurulum bilgileri projenin ana klasöründeki
-`config/application.properties` dosyasında tutulur.
-
-Bu yerel dosya `.gitignore` ile Git takibinin dışındadır ve normal Maven
-paketlemesinde JAR'a eklenmez. Projeyi yeni klonladıysanız `config` klasörünü
-ve içindeki `application.properties` dosyasını kendiniz oluşturun:
-
-```properties
-payguard.admin-bootstrap.enabled=false
-payguard.admin-bootstrap.email=
-payguard.admin-bootstrap.password=
-```
-
-İlk kurulumda **yerel dosyada** `enabled=true` yapın, e-posta ve şifre
-alanlarını doldurun. Şifre en az 12 karakter, en fazla 72 karakter ve
-UTF-8 olarak en fazla 72 byte olmalıdır. IntelliJ'den uygulamayı normal
-şekilde başlatın. Run Configuration içindeki **Working directory** projenin
-ana klasörü olmalıdır; Spring Boot bu klasördeki `config/application.properties`
-dosyasını otomatik olarak okur. Terminalden çalıştırırken de uygulamayı bu
-ana klasörden başlatın.
-
-Veritabanı bağlantısı başarılıysa başlangıçta admin hesabı oluşturulur
-ve logda `Admin hesabı oluşturuldu.` görülür. Ardından **yerel dosyada**
-`enabled=false` yapın, e-posta ve şifre alanlarını boşaltıp uygulamayı
-yeniden başlatın. Hesap veritabanında kalır; şifre yalnızca BCrypt hash
-olarak saklanır. Repodaki varsayılan dosyayı değiştirmek gerekmez.
-
-Aynı yöntem `local` ve `prod` profillerinde kullanılabilir. Sunucuda da
-uygulamanın başlatıldığı klasörde bir `config/application.properties`
-dosyası hazırlayın. Veritabanı bağlantı bilgileri admin hesabından ayrıdır
-ve ilgili profil için tanımlı olmalıdır.
-
-Aynı aktif admin zaten varsa mevcut hesap ve şifresi korunur. Normal
-kullanıcıya veya müşteri profiline ait e-posta kullanılamaz; devre dışı
-admin hesabı bu kurulumla yeniden etkinleştirilmez. Kurulum açıkken
-geçersiz veya eksik bilgiler uygulamanın başlangıcını durdurur.
-
-Normal kayıt endpointi her zaman `USER` oluşturur; herkese açık bir
-admin kurulum endpointi yoktur. Admin şifresi kurulum loguna yazılmaz.
-
-### Yönetici paneli
-
-Giriş yaptıktan sonra `http://localhost:8080/` adresini açın. `ADMIN`
-hesabı `/admin` yönetici paneline yönlendirilir; normal kullanıcı kendi
-kart panelinde kalır. Yönetici paneli müşterilerin ID, ad, soyad ve
-e-posta bilgilerini tablo olarak gösterir. Müşteri yoksa boş liste mesajı
-görülür. Normal kullanıcı `/admin` adresine erişemez.
-
-Paneldeki **Çıkış yap** düğmesi CSRF korumalı POST isteğiyle oturumu kapatır.
-
-### Production profili
-
-Production ortamında uygulama başlamadan önce aşağıdaki değerler hosting
-sağlayıcısı veya sunucu üzerinden tanımlanır:
-
-```powershell
-$env:SPRING_PROFILES_ACTIVE="prod"
-$env:PAYGUARD_DB_URL="jdbc:mysql://db-host:3306/payguard"
-$env:PAYGUARD_DB_USERNAME="payguard_user"
-$env:PAYGUARD_DB_PASSWORD="production-sifresi"
-$env:PORT="8080"
-```
-
-Bu değerler yalnızca örnektir; gerçek production bilgileri repoya eklenmez.
-
-### Docker Compose ile çalıştırma
-
-Docker Desktop açık olmalıdır. Projenin ana klasöründe `.env.example`
-dosyasını `.env` adıyla kopyalayın:
+PowerShell'de `.env` dosyasını hazırlayın:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-macOS/Linux için `cp .env.example .env` kullanın. Yerel `.env` içinde
-`PAYGUARD_DB_PASSWORD` ve `PAYGUARD_MYSQL_ROOT_PASSWORD` alanlarına farklı,
-boş olmayan şifreler yazın. `.env` Git takibine ve Docker build ortamına
-gönderilmez; gerçek şifreleri `.env.example` veya `compose.yaml` içine yazmayın.
-`PAYGUARD_HTTP_PORT` varsayılan olarak `8080` değerindedir. IntelliJ'deki
-uygulama bu portu kullanıyorsa onu durdurun veya bu değeri `8081` yapın.
-Terminalde tanımlı aynı adlı değişkenler `.env` değerlerinden önceliklidir.
+macOS/Linux için `cp .env.example .env` kullanın. `.env` içinde `PAYGUARD_DB_PASSWORD` ve `PAYGUARD_MYSQL_ROOT_PASSWORD` alanlarına farklı, boş olmayan şifreler yazın.
 
-```powershell
+```bash
 docker compose config --quiet
 docker compose up --build -d
-docker compose ps
-docker compose logs -f app
 ```
 
-`config --quiet`, ayarları şifreleri ekrana basmadan doğrular. Uygulama
-hazır olduğunda `http://localhost:8080` adresini açın; portu değiştirdiyseniz
-yeni değeri kullanın. Port yalnızca yerel bilgisayara açılır. `logs -f`
-komutundan `Ctrl+C` ile çıkmak container'ları durdurmaz.
-
-Dockerfile, Maven Wrapper ile Java 21 üzerinde JAR üretir; son imajda
-JRE ve uygulama bulunur. İmaj build edilirken testler çalıştırılmaz;
-238 testten oluşan suite ayrı test komutuyla ve GitHub CI'da doğrulanır.
-Compose, MySQL 8.4 hazır olana kadar uygulamayı bekletir. MySQL'de uygulama
-kullanıcısıyla `SELECT 1` sorgusu başarılı olunca PayGuard başlatılır.
-
-Uygulama mevcut `prod` profilini kullanarak bağlantı bilgilerini environment
-değerlerinden okur. Burada `prod` seçimi Docker'ı internete yayınlamaz;
-bu Compose dosyası yerel çalıştırma içindir. MySQL'e `mysql:3306` üzerinden
-bağlanılır; MySQL portu yalnızca yerel bilgisayarda `127.0.0.1:3307` adresine
-açılır. Flyway migration'ları uygulama başlangıcında çalışır.
-
-MySQL Workbench içinde mevcut bağlantınızı koruyup `PayGuard Docker` adlı
-ayrı bir Standard TCP/IP bağlantısı oluşturun: Hostname `127.0.0.1`, Port
-`3307`, Username `payguard_user`, Default Schema `payguard`. Bağlantı şifresi
-yerel `.env` dosyasındaki `PAYGUARD_DB_PASSWORD` değeridir; paneldeki admin
-şifresi değildir. Workbench ile uygulama aynı Docker veritabanını kullanır.
-
-MySQL verileri `mysql_data` adlı kalıcı volume'da saklanır. Bu veritabanı
-IntelliJ'deki yerel MySQL'den ayrıdır; mevcut müşteri ve admin hesapları
-otomatik taşınmaz. Docker için ilk admin gerektiğinde yukarıdaki kurulum
-adımlarını aynı özel `config/application.properties` dosyasında uygulayın.
-Compose bu klasörü `/app/config` yoluna salt okunur bağlar; dosya imaja
-eklenmez. Kurulumdan sonra yerel dosyada bilgileri temizleyip
-`docker compose restart app` çalıştırın. Aynı klasörle IntelliJ'den
-çalıştırırken bootstrap ayarlarının kapalı olduğundan emin olun.
-
-Container'ları kaldırıp verileri saklamak için:
-
-```powershell
-docker compose down
-```
-
-Tekrar `docker compose up -d` çalıştırınca aynı volume kullanılır.
-`docker compose down --volumes` veritabanı volume'unu da siler; verileri
-saklamak istediğinizde kullanmayın. Volume ilk kez oluşturulduktan sonra
-`.env` içindeki şifreleri değiştirmek mevcut MySQL hesaplarının şifrelerini
-değiştirmez. Bunun için veritabanındaki hesabın şifresi de güncellenmelidir.
-
-## Test stratejisi
-
-PayGuard'ın güncel test tabanı **238 başarılı testten** oluşur.
-
-```mermaid
-flowchart TD
-    Unit["Unit testleri"] --> Service["Service iş kuralları"]
-    Web["MockMvc testleri"] --> Controller["HTTP + validation + CSRF"]
-    Security["Method security testleri"] --> Authorization["Rol + sahiplik"]
-    Integration["Testcontainers"] --> MySQL[("Gerçek MySQL 8.4")]
-```
-
-| Test türü | Doğruladığı alan |
+| Kaynak | Adres |
 |---|---|
-| Unit test | Servis kuralları, ödeme kararları, idempotency ve hata senaryoları |
-| Controller testi | Endpoint, durum kodu, JSON cevabı, validation ve CSRF davranışı |
-| Security testi | Login, yanlış şifre, logout, session, rol ve kaynak sahipliği |
-| Repository entegrasyon testi | Gerçek MySQL üzerindeki unique constraint ve kalıcılık davranışı |
-| Optimistic locking testi | Aynı kartı eş zamanlı güncelleyen işlemlerde kayıp güncellemenin engellenmesi |
-| Yaşam döngüsü testi | Müşteri silinirken bağlı kullanıcı hesabının tutarlı biçimde kaldırılması |
+| Giriş / kayıt | `http://localhost:8080/login` · `http://localhost:8080/register` |
+| Kullanıcı paneli | `http://localhost:8080/` |
+| Yönetici paneli | `http://localhost:8080/admin` — admin hesabı gerekir |
+| Workbench bağlantısı | `127.0.0.1:3307` · `payguard_user` · schema `payguard` |
 
-Tüm testleri çalıştırmak için:
+İlk admin kurulumu isteğe bağlıdır; normal kayıtla kullanıcı akışını deneyebilirsiniz. Docker, IntelliJ'deki yerel MySQL'den ayrı bir veritabanı kullanır. Swagger UI, `local` profilinde `/swagger-ui.html` adresindedir.
+
+```bash
+docker compose stop       # Durdur; container ve veriler kalsın
+docker compose start      # Yeniden başlat
+docker compose down       # Container'ları kaldır; veriler volume'da kalsın
+```
+
+`docker compose down --volumes` veritabanı verilerini de siler.
+
+[IntelliJ/Java 21 kurulumu, profiller, admin ve Docker ayrıntıları →](docs/setup.md)
+
+## Testler
+
+Son tam doğrulama: **238 test, 0 failure, 0 error, 0 skipped**. GitHub Actions aynı test paketini PR'larda ve `main` değişikliklerinde çalıştırır.
+
+| Kapsam | Doğrulanan davranış |
+|---|---|
+| İş kuralları | Ödeme ret nedenleri, bakiye/limitler, idempotency |
+| Web ve güvenlik | Form/API doğrulaması, CSRF, giriş/çıkış, rol ve sahiplik |
+| Gerçek MySQL | Unique constraint, kalıcılık, hesap yaşam döngüsü, optimistic locking |
+
+Java 21 ve çalışan Docker ile:
 
 ```powershell
 .\mvnw.cmd clean test
 ```
 
-macOS/Linux:
+macOS/Linux: `./mvnw clean test`. Testcontainers izole MySQL container'ları oluşturur; kullanıcının veritabanını kullanmaz. Docker imajı build edilirken testler atlanır, testler ayrı çalıştırılır.
 
-```bash
-./mvnw clean test
-```
+[Test yapısı ve ortamı →](docs/testing.md)
 
-Testcontainers, entegrasyon testleri sırasında ihtiyaç duyulan izole
-`mysql:8.4` container'larını otomatik olarak başlatır. Tam test paketi
-çalışırken Docker Desktop'ta rastgele isim ve portlara sahip birden fazla
-geçici MySQL container'ı görülebilir; bu normaldir.
+## Proje kapsamı
 
-Gerçek veritabanı kullanan context ve repository testleri
-`@ActiveProfiles("test")` ile test profilini etkinleştirir. JDBC URL, kullanıcı
-adı ve şifre dosyaya yazılmaz; `@ServiceConnection` bu değerleri çalışan
-MySQL container'ından Spring Boot'a otomatik olarak aktarır. Mockito tabanlı
-unit testleri gerçek veritabanına ihtiyaç duymadığı için bu profili kullanmaz.
+PayGuard eğitim ve portföy amacıyla geliştirilmiştir. Kart numaraları sentetiktir; bakiye yükleme ve ödemeler simülasyondur. Gerçek ödeme sağlayıcısı entegrasyonu içermez.
 
-`Ryuk` isimli yardımcı container, testler tamamlandığında geçici kaynakların
-temizlenmesini yönetir. MySQL image'ı daha önce indirildiyse Docker aynı
-image'ı yeniden indirmez.
-
-Beklenen güncel sonuç:
-
-```text
-Tests run: 238, Failures: 0, Errors: 0, Skipped: 0
-BUILD SUCCESS
-```
-
-## Proje yapısı
-
-```text
-src
-├── main
-│   ├── java/dev/onurerkoc/payguard
-│   │   ├── config       # Spring Security ve OpenAPI yapılandırması
-│   │   ├── controller   # REST API ve MVC sayfaları
-│   │   ├── dto          # Request ve response sözleşmeleri
-│   │   ├── entity       # JPA domain modelleri
-│   │   ├── exception    # Domain hataları ve global hata yönetimi
-│   │   ├── repository   # Spring Data JPA repositoryleri
-│   │   ├── security     # UserDetails ve sahiplik politikası
-│   │   └── service      # İş kuralları ve transaction sınırları
-│   └── resources
-│       ├── templates                     # Thymeleaf HTML sayfaları
-│       ├── db/migration                  # Flyway migration'ları
-│       ├── application.properties        # Ortak ayarlar
-│       ├── application-local.properties  # Yerel MySQL bağlantısı
-│       └── application-prod.properties   # Production environment değişkenleri
-└── test
-    ├── java/dev/onurerkoc/payguard
-    │   ├── config       # Testcontainers yapılandırması
-    │   ├── controller   # MockMvc testleri
-    │   ├── entity       # Entity davranış testleri
-    │   ├── repository   # Gerçek MySQL entegrasyon testleri
-    │   ├── security     # Authentication ve authorization testleri
-    │   └── service      # Unit testler
-    └── resources
-        └── application-test.properties   # Test ortamı ayarları
-```
-
-## Tasarım kararları
-
-### Neden session tabanlı authentication?
-
-Spring MVC ve Thymeleaf paneli, kullanıcı girişini session üzerinden yönetir.
-Girişten sonra tarayıcı oturum çerezini sonraki isteklerde gönderir; kullanıcı
-kimliğini her formda ayrıca taşımamız gerekmez. Spring Security, kart
-işlemlerinde oturumu ve CSRF korumasını kontrol eder.
-
-### Neden idempotency?
-
-Ağ problemi nedeniyle aynı ödeme isteği yeniden gönderilebilir. `Idempotency-Key`, tekrar isteğinin ikinci kez bakiye düşürmesini engeller. Aynı anahtar farklı ödeme verileriyle kullanılırsa istek çakışma olarak reddedilir.
-
-### Neden optimistic locking?
-
-Aynı kart bakiyesini iki transaction eş zamanlı değiştirebilir. `@Version`, eski veriyi kullanan ikinci transaction'ın ilk güncellemeyi sessizce ezmesini engeller.
-
-### Neden Testcontainers?
-
-Repository davranışları yalnızca mock veya H2 ile değil, üretimde kullanılan veritabanı ailesiyle doğrulanır. Testcontainers her test çalıştırmasında izole ve tekrarlanabilir bir MySQL ortamı sağlar.
-
-### Neden Flyway?
-
-Hibernate'in şemayı otomatik olarak güncellemesi yerine bütün veritabanı
-değişiklikleri sürümlü SQL dosyalarıyla yönetilir. Böylece şemanın hangi
-değişikliklerden geçtiği Git geçmişinden ve `flyway_schema_history`
-tablosundan izlenebilir.
-
-Yeni bir ortam V1'den başlayarak aynı migration sırasını çalıştırır.
-Uygulanmış migration dosyaları değiştirilmez; sonraki değişiklikler V4,
-V5 ve devam eden sürümler olarak eklenir.
-
-### Neden ortam profilleri ayrıldı?
-
-Yerel geliştirme, otomatik test ve production ortamları aynı bağlantı
-bilgilerini kullanmaz. Spring Profiles sayesinde iş kodu değiştirilmeden yalnızca
-ortama ait yapılandırma seçilir. Yerel şifre kaynak koda yazılmaz, testler
-izole MySQL container'larında çalışır ve production bağlantısı yalnızca
-sunucunun environment variable değerlerinden alınır.
-
-### Neden DTO kullanılıyor?
-
-Entity'ler doğrudan API sözleşmesi yapılmaz. DTO'lar istemcinin gönderebileceği alanları sınırlar, validation kurallarını taşır ve persistence modelinin dışarı sızmasını engeller.
-
-## Yol haritası
-
-### Tamamlanan temel
-
-- [x] Müşteri ve sanal kart domain modeli
-- [x] Ödeme yetkilendirme kuralları
-- [x] Idempotency ve optimistic locking
-- [x] Birim, web, güvenlik ve MySQL entegrasyon testleri
-- [x] Session tabanlı Spring Security temeli
-- [x] Rol ve müşteri sahipliği yetkilendirmesi
-- [x] GitHub Actions ile otomatik test
-- [x] Flyway ile sürümlü veritabanı migration'ları
-- [x] Local, test ve production profillerini ayırma
-- [x] OpenAPI 3 ve Swagger UI dokümantasyonu
-- [x] Spring MVC, Thymeleaf ve Bootstrap kullanıcı paneli
-- [x] Güvenli ilk admin kurulumu ve müşteri listeli yönetici paneli
-- [x] Docker imajı ve kalıcı MySQL verili Docker Compose kurulumu
-- [x] CSRF korumalı tarayıcı kayıt formu ve giriş akışı
-
-### Daha sonra değerlendirilecek geliştirmeler
-
-- Spring Boot Actuator ile health ve uygulama durumu endpointleri
-- Filtreleme ve gelişmiş sayfalama seçenekleri
-- Test kapsamı raporu ve CI çıktılarının zenginleştirilmesi
-- Production deployment dokümantasyonu
-
-Bu sıra, projeyi gereksiz yere mikroservis, Kafka veya dağıtık sistem
-karmaşıklığına taşımadan mevcut monolitik yapıyı tamamlamayı hedefler.
-
-## Proje durumu
-
-PayGuard aktif olarak geliştirilen bir portföy ve öğrenme projesidir.
-REST API'nin yanında Spring MVC, Thymeleaf ve Bootstrap ile hazırlanmış
-bir kullanıcı paneli bulunur. Kullanıcılar bu panelden sanal kartlarını
-yönetebilir, bakiye yükleyebilir, ödeme simüle edebilir, ödeme izinlerini
-değiştirebilir, kart limitlerini düzenleyebilir ve işlem geçmişini görebilir.
-
-> Bu proje eğitim ve portföy amacıyla geliştirilmiştir. Üretilen kart numaraları sentetiktir; gerçek kart verisi veya gerçek para transferi için kullanılmamalıdır.
+Mevcut kapsam: REST API, kullanıcı/yönetici paneli, güvenlik kontrolleri, Flyway, Docker ve CI. Profil düzenleme ekranı, şifre değiştirme, sağlık endpointi ve test kapsamı raporu henüz eklenmemiştir. İnternete deployment için ayrıca HTTPS ve sunucu yapılandırması gerekir.
 
 ## Geliştirici
 
-**Onur Erkoç**
-
-- GitHub: [onurerkoc-dev](https://github.com/onurerkoc-dev)
-- Portfolio: [onurerkoc.dev](https://onurerkoc.dev)
+**Onur Erkoç** · [GitHub](https://github.com/onurerkoc-dev) · [Portfolio](https://onurerkoc.dev)
